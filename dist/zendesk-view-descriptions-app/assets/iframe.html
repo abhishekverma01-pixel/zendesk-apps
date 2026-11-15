@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enhanced Views & Backlog Manager</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://static.zdassets.com/zendesk_app_framework_sdk/2.0/zaf_sdk.min.js"></script>
+  <script src="mock-data.js"></script>
+</head>
+<body>
+  <div id="app" class="app-container">
+
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <svg class="header-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+        </svg>
+        <div class="header-title-wrap">
+          <h1 class="header-title">Backlog & Enhanced Views</h1>
+          <span id="global-status-badge" class="badge badge-neutral">Ready</span>
+        </div>
+      </div>
+      <button id="btn-refresh" class="btn-icon" title="Refresh data">
+        <svg class="icon-refresh" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <polyline points="1 20 1 14 7 14"></polyline>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Contextual Ticket Alert (ticket_sidebar only) -->
+    <section id="sidebar-duplicate-alert" class="sidebar-alert hidden">
+      <div class="sidebar-alert-icon">⚠️</div>
+      <div class="sidebar-alert-content">
+        <div class="sidebar-alert-title" id="sidebar-duplicate-title">Multiple tickets from this customer</div>
+        <div class="sidebar-alert-desc" id="sidebar-duplicate-desc">Review and merge duplicate tickets.</div>
+      </div>
+      <button id="btn-view-customer-duplicates" class="btn btn-sm btn-warning">View</button>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs" role="tablist">
+      <button class="nav-tab active" data-tab="tab-description" role="tab" aria-selected="true">
+        <span class="tab-icon">🔍</span>
+        <span class="tab-label">Description Text</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-calendar" role="tab" aria-selected="false">
+        <span class="tab-icon">📅</span>
+        <span class="tab-label">Calendar Dates</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-duplicates" role="tab" aria-selected="false">
+        <span class="tab-icon">👥</span>
+        <span class="tab-label">Duplicate Customers</span>
+        <span id="tab-duplicates-count" class="tab-badge hidden">0</span>
+      </button>
+    </nav>
+
+    <!-- TAB 1: Ticket Description & Body Text Filtering -->
+    <div id="tab-description" class="tab-panel active">
+      <div class="panel-intro">
+        <p>Filter open tickets by keywords or phrases found inside the <strong>ticket body & description</strong>.</p>
+      </div>
+
+      <div class="filter-controls-box">
+        <div class="search-input-wrap">
+          <input type="text" id="desc-search-input" class="form-input" placeholder="Type keywords (e.g. 'timeout', 'invoice', 'damaged')..." />
+          <button id="desc-search-clear" class="btn-clear hidden">&times;</button>
+        </div>
+
+        <div class="filter-row">
+          <label class="filter-label">Status:</label>
+          <select id="desc-status-filter" class="form-select">
+            <option value="active">Active (New, Open, Pending)</option>
+            <option value="open">Open Only</option>
+            <option value="new">New Only</option>
+            <option value="pending">Pending Only</option>
+            <option value="any">Any Status (incl. Solved)</option>
+          </select>
+          <button id="btn-run-desc-search" class="btn btn-primary">Search Body</button>
+        </div>
+      </div>
+
+      <!-- Quick Keyword Suggestion Chips -->
+      <div class="keyword-chips">
+        <span class="chip-label">Quick filters:</span>
+        <button class="chip" data-keyword="timeout">timeout</button>
+        <button class="chip" data-keyword="invoice">invoice</button>
+        <button class="chip" data-keyword="damaged">damaged</button>
+        <button class="chip" data-keyword="refund">refund</button>
+        <button class="chip" data-keyword="sso">sso</button>
+      </div>
+
+      <div class="results-header">
+        <span id="desc-results-count" class="results-title">Tickets</span>
+        <button id="btn-copy-desc-ids" class="btn-link hidden">Copy Ticket IDs</button>
+      </div>
+
+      <div id="desc-results-list" class="tickets-container"></div>
+    </div>
+
+    <!-- TAB 2: Calendar-Based Filters -->
+    <div id="tab-calendar" class="tab-panel">
+      <div class="panel-intro">
+        <p>Filter tickets by <strong>exact calendar dates</strong> instead of converting into relative hours.</p>
+      </div>
+
+      <!-- Quick Preset Buttons -->
+      <div class="presets-section">
+        <label class="section-label">Date Presets:</label>
+        <div class="presets-grid">
+          <button class="preset-btn active" data-preset="after-2026">Created in 2026 (Jan 1+)</button>
+          <button class="preset-btn" data-preset="last-30">Last 30 Days</button>
+          <button class="preset-btn" data-preset="last-180">Last 6 Months</button>
+          <button class="preset-btn" data-preset="custom">Custom Date Range...</button>
+        </div>
+      </div>
+
+      <!-- Custom Date Picker Fields (Collapsible) -->
+      <div id="custom-date-box" class="custom-date-box hidden">
+        <div class="date-fields-row">
+          <div class="date-field">
+            <label for="date-from" class="date-label">From Date:</label>
+            <input type="date" id="date-from" class="form-input form-date" />
+          </div>
+          <div class="date-field">
+            <label for="date-to" class="date-label">To Date:</label>
+            <input type="date" id="date-to" class="form-input form-date" />
+          </div>
+        </div>
+        <button id="btn-apply-custom-date" class="btn btn-secondary btn-sm" style="margin-top:6px;">Apply Date Range</button>
+      </div>
+
+      <div class="filter-row" style="margin-top:10px;">
+        <label class="filter-label">Status:</label>
+        <select id="calendar-status-filter" class="form-select">
+          <option value="active">Active (New, Open, Pending)</option>
+          <option value="open">Open Only</option>
+          <option value="new">New Only</option>
+          <option value="solved">Solved Only</option>
+          <option value="any">Any Status</option>
+        </select>
+        <button id="btn-run-calendar-filter" class="btn btn-primary">Filter Tickets</button>
+      </div>
+
+      <div class="results-header">
+        <span id="calendar-results-count" class="results-title">Tickets</span>
+        <button id="btn-copy-calendar-ids" class="btn-link hidden">Copy Ticket IDs</button>
+      </div>
+
+      <div id="calendar-results-list" class="tickets-container"></div>
+    </div>
+
+    <!-- TAB 3: Duplicate Customer Ticket View -->
+    <div id="tab-duplicates" class="tab-panel">
+      <div class="panel-intro">
+        <p>Surfaces customers with <strong>multiple New or Open tickets</strong> to review, consolidate, and merge.</p>
+      </div>
+
+      <div class="duplicate-summary-card">
+        <div class="summary-metric">
+          <span class="metric-number" id="dup-requesters-count">0</span>
+          <span class="metric-label">Requesters with duplicates</span>
+        </div>
+        <div class="summary-metric">
+          <span class="metric-number" id="dup-total-tickets-count">0</span>
+          <span class="metric-label">Total open tickets</span>
+        </div>
+        <button id="btn-rescan-duplicates" class="btn btn-secondary btn-sm" title="Re-scan for duplicate tickets">Re-scan</button>
+      </div>
+
+      <div class="results-header">
+        <span class="results-title">Duplicate Customers List</span>
+        <span class="results-hint">Click customer to inspect & merge</span>
+      </div>
+
+      <div id="duplicates-list" class="duplicates-container"></div>
+    </div>
+
+    <!-- App Footer -->
+    <footer class="app-footer">
+      <span id="footer-status-text">Enhanced Views & Backlog Manager</span>
+      <span class="footer-help">Click ticket to open in Zendesk</span>
+    </footer>
+
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>

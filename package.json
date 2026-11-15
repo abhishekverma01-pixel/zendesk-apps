@@ -1,0 +1,20 @@
+{
+  "name": "zendesk-view-descriptions-app",
+  "version": "1.0.0",
+  "description": "Zendesk Sidebar App that displays descriptions, guidelines, and criteria of views",
+  "scripts": {
+    "start": "python3 -m http.server 8080 --directory assets",
+    "build": "python3 build-zip.py",
+    "package": "python3 build-zip.py"
+  },
+  "keywords": [
+    "zendesk",
+    "zendesk-app",
+    "zaf-v2",
+    "ticket-sidebar",
+    "views",
+    "view-descriptions"
+  ],
+  "author": "Support Engineering",
+  "license": "MIT"
+}

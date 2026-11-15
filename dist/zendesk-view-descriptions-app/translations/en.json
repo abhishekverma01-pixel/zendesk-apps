@@ -1,0 +1,8 @@
+{
+  "app": {
+    "name": "Enhanced Views & Backlog Manager",
+    "short_description": "Ticket description filtering, calendar date ranges, and duplicate customer ticket detector.",
+    "long_description": "Overcomes native Zendesk Views limitations: (1) Filter tickets by keywords in descriptions/bodies, (2) Filter tickets by real calendar dates rather than hours, and (3) Identify customers with multiple open tickets to quickly review and merge duplicates.",
+    "installation_instructions": "Upload the zip file in Zendesk Admin Center > Apps and integrations > Apps > Zendesk Support apps > Upload private app."
+  }
+}

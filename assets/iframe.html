@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Views &amp; Duplicate Tickets</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://static.zdassets.com/zendesk_app_framework_sdk/2.0/zaf_sdk.min.js"></script>
+</head>
+<body>
+  <div id="app" class="app-layout">
+    <aside id="views-sidebar" class="views-sidebar">
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">Views</h2>
+        <div class="sidebar-header-actions">
+          <button id="btn-refresh-all" class="icon-btn" title="Refresh Views &amp; Tickets">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Views List Container -->
+      <div id="views-list" class="views-list">
+        <div class="views-loading">Loading Views...</div>
+      </div>
+
+      <hr class="sidebar-divider" />
+
+      <!-- BOTTOM SECTION (Replaces Suspended/Deleted with Duplicate Tickets) -->
+      <div class="sidebar-bottom-section">
+        <div id="nav-item-duplicates" class="view-item duplicate-view-item" title="View Duplicate Customer Tickets">
+          <span class="view-item-title">Duplicate tickets</span>
+          <span id="dup-sidebar-count" class="dup-badge">0</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- RIGHT MAIN CONTENT PANE -->
+    <main id="main-content" class="main-content">
+
+      <!-- SECTION 1: VIEW TICKETS TABLE (Active View Mode) -->
+      <section id="section-view-tickets" class="content-section active">
+        <!-- View Title & Top Actions -->
+        <div class="view-header-row">
+          <div class="view-header-left">
+            <h1 id="current-view-title" class="view-title">Your unsolved tickets</h1>
+          </div>
+          <div class="view-header-right">
+            <button id="btn-refresh-current-view" class="icon-btn" title="Refresh current view">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter Toggle Button (Zendesk Native Filter Button) -->
+        <div class="filter-toggle-row">
+          <button id="btn-toggle-filters" class="btn-filter" title="Filter tickets by 9 fields">
+            <span class="filter-icon">⚡</span>
+            <span>Filter</span>
+            <span id="filter-active-pill" class="filter-active-pill hidden">0 active</span>
+          </button>
+        </div>
+
+        <!-- 9-Filter Collapsible Drawer -->
+        <div id="filters-drawer" class="filters-drawer hidden">
+          <div class="filters-drawer-header">
+            <span class="filters-drawer-title">Filter Tickets In View (9 Fields)</span>
+            <button id="btn-reset-view-filters" class="btn-link" title="Reset all 9 filters">Reset All Filters</button>
+          </div>
+
+          <div class="filters-grid">
+            <!-- 1: Subject / Description -->
+            <div class="field-col">
+              <label for="vf-subject" class="field-mini-label">1. Subject / Description:</label>
+              <input type="text" id="vf-subject" class="form-input" placeholder="Search subject or body..." autocomplete="off" />
+            </div>
+
+            <!-- 2: Tags (Multi-Tag Selector with Chips & Dropdown) -->
+            <div class="field-col field-col-tags">
+              <label for="tag-chip-input" class="field-mini-label">2. Tags:</label>
+              <div id="tag-multiselect" class="tag-multiselect">
+                <div class="tag-search-icon">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </div>
+                <div id="tag-chips-wrap" class="tag-chips-wrap"></div>
+                <input type="text" id="tag-chip-input" class="tag-chip-input" placeholder="e.g. vip, sub..." autocomplete="off" />
+                <div id="tag-chevron" class="tag-chevron" title="View available tags">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Available Tags Dropdown Menu -->
+              <div id="tag-dropdown" class="tag-dropdown hidden">
+                <div class="tag-dropdown-search-wrap">
+                  <span class="tag-dropdown-hint">Select a tag or type and press Enter</span>
+                </div>
+                <div id="tag-options-list" class="tag-options-list"></div>
+              </div>
+            </div>
+
+            <!-- 3: Ticket Status -->
+            <div class="field-col">
+              <label for="vf-status" class="field-mini-label">3. Status:</label>
+              <select id="vf-status" class="form-select">
+                <option value="">All Statuses</option>
+                <option value="new">New</option>
+                <option value="open">Open</option>
+                <option value="pending">Pending</option>
+                <option value="hold">On-hold</option>
+                <option value="solved">Solved</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+
+            <!-- 4: Priority -->
+            <div class="field-col">
+              <label for="vf-priority" class="field-mini-label">4. Priority:</label>
+              <select id="vf-priority" class="form-select">
+                <option value="">All Priorities</option>
+                <option value="urgent">Urgent</option>
+                <option value="high">High</option>
+                <option value="normal">Normal</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+
+            <!-- 5: Channel -->
+            <div class="field-col">
+              <label for="vf-channel" class="field-mini-label">5. Channel:</label>
+              <select id="vf-channel" class="form-select">
+                <option value="">All Channels</option>
+                <option value="email">Email</option>
+                <option value="web">Web</option>
+                <option value="chat">Chat</option>
+                <option value="voice">Voice / Phone</option>
+                <option value="messaging">Messaging</option>
+                <option value="sms">SMS / Text</option>
+                <option value="api">API</option>
+                <option value="help_center">Help Center</option>
+                <option value="social">Social (FB, X, WA)</option>
+              </select>
+            </div>
+
+            <!-- 6: Type -->
+            <div class="field-col">
+              <label for="vf-type" class="field-mini-label">6. Type:</label>
+              <select id="vf-type" class="form-select">
+                <option value="">All Types</option>
+                <option value="question">Question</option>
+                <option value="incident">Incident</option>
+                <option value="problem">Problem</option>
+                <option value="task">Task</option>
+              </select>
+            </div>
+
+            <!-- 7: Requester -->
+            <div class="field-col field-col-requester">
+              <label for="vf-requester" class="field-mini-label">7. Requester:</label>
+              <input type="text" id="vf-requester" class="form-input" placeholder="Name or email..." autocomplete="off" />
+            </div>
+
+            <!-- 8: Assignee -->
+            <div class="field-col">
+              <label for="vf-assignee" class="field-mini-label">8. Assignee:</label>
+              <select id="vf-assignee" class="form-select">
+                <option value="">All Assignees</option>
+                <option value="me">Assigned to Me</option>
+                <option value="unassigned">Unassigned</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 9: Request Date Full Width Row -->
+          <div class="date-filter-box">
+            <div class="date-filter-top">
+              <label class="field-mini-label">9. Request Date:</label>
+              <div class="date-quick-presets">
+                <button class="btn-chip" id="btn-date-2026">In 2026</button>
+                <button class="btn-chip" id="btn-date-30d">Last 30 Days</button>
+                <button class="btn-chip" id="btn-date-clear">Clear Dates</button>
+              </div>
+            </div>
+            <div class="date-inputs-row">
+              <div class="date-input-wrap">
+                <span class="date-hint">From:</span>
+                <input type="date" id="vf-date-from" class="form-input form-date" title="Created on or after" />
+              </div>
+              <div class="date-input-wrap">
+                <span class="date-hint">To:</span>
+                <input type="date" id="vf-date-to" class="form-input form-date" title="Created on or before" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subheader: Count & Pagination Info -->
+        <div class="view-meta-row">
+          <span id="view-meta-count" class="view-meta-count">0 tickets (Page 1 of 1)</span>
+          <span id="view-meta-updated" class="view-meta-updated"></span>
+        </div>
+
+        <!-- Tickets Table Container -->
+        <div class="tickets-table-wrap">
+          <table class="tickets-table">
+            <thead>
+              <tr>
+                <th class="th-status">Ticket status</th>
+                <th class="th-subject">Subject</th>
+                <th class="th-requester">Requester</th>
+                <th class="th-requested">Requested</th>
+                <th class="th-type">Type</th>
+                <th class="th-priority">Priority</th>
+                <th class="th-action"></th>
+              </tr>
+            </thead>
+            <tbody id="tickets-table-body">
+              <tr>
+                <td colspan="7" class="table-loading-cell">Loading view tickets...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Bottom Pagination (30 Tickets per Page) -->
+        <div class="pagination-bar" id="view-pagination">
+          <button id="btn-page-first" class="page-btn" disabled>&laquo; First</button>
+          <button id="btn-page-prev" class="page-btn" disabled>&lsaquo; Previous</button>
+          <span id="pagination-pages-indicator" class="page-indicator">Page 1 of 1</span>
+          <button id="btn-page-next" class="page-btn" disabled>Next &rsaquo;</button>
+          <button id="btn-page-last" class="page-btn" disabled>Last &raquo;</button>
+        </div>
+      </section>
+
+      <!-- SECTION 2: DUPLICATES QUEUE -->
+      <section id="section-duplicates" class="content-section">
+        <div class="view-header-row">
+          <div class="view-header-left">
+            <h1 class="view-title">👥 Duplicate Tickets Queue</h1>
+          </div>
+          <div class="view-header-right">
+            <button id="btn-rescan-duplicates" class="btn btn-sm btn-secondary">↻ Re-scan</button>
+          </div>
+        </div>
+
+        <div class="duplicate-summary-card">
+          <div class="summary-metric">
+            <span class="metric-number" id="dup-requesters-count">0</span>
+            <span class="metric-label">Requesters with Multiple Open Tickets</span>
+          </div>
+          <div class="summary-metric">
+            <span class="metric-number" id="dup-total-tickets-count">0</span>
+            <span class="metric-label">Total Open Duplicate Tickets</span>
+          </div>
+        </div>
+
+        <!-- Subheader: Duplicate Customers Count & Pagination Info -->
+        <div class="view-meta-row" id="dup-meta-row">
+          <span id="dup-meta-count" class="view-meta-count">0 duplicate customers (Page 1 of 1)</span>
+          <span id="dup-meta-updated" class="view-meta-updated"></span>
+        </div>
+
+        <div id="duplicates-list" class="duplicates-container"></div>
+
+        <!-- Bottom Pagination for Duplicates (Page size = 10 customer groups) -->
+        <div class="pagination-bar" id="dup-pagination">
+          <button id="btn-dup-page-first" class="page-btn" disabled>&laquo; First</button>
+          <button id="btn-dup-page-prev" class="page-btn" disabled>&lsaquo; Previous</button>
+          <span id="dup-pagination-pages-indicator" class="page-indicator">Page 1 of 1</span>
+          <button id="btn-dup-page-next" class="page-btn" disabled>Next &rsaquo;</button>
+          <button id="btn-dup-page-last" class="page-btn" disabled>Last &raquo;</button>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- FLOATING TICKET HOVER POPOVER (Exact Image 2) -->
+    <div id="ticket-hover-popover" class="ticket-hover-popover hidden">
+      <div class="popover-top-row">
+        <span id="popover-status-badge" class="badge badge-open">Open</span>
+        <span id="popover-ticket-id" class="popover-ticket-id">Ticket #0</span>
+      </div>
+      <div id="popover-subject" class="popover-subject"></div>
+      <div id="popover-details" class="popover-details"></div>
+      <div class="popover-comment-title">Ticket description</div>
+      <div class="popover-comment-box">
+        <div class="popover-comment-header">
+          <span id="popover-author" class="popover-author"></span>
+          <span id="popover-date" class="popover-date"></span>
+        </div>
+        <div id="popover-comment-body" class="popover-comment-body"></div>
+      </div>
+    </div>
+
+    <!-- MERGE TICKETS MODAL (Zendesk Native Style) -->
+    <div id="merge-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="merge-modal-title">
+      <div class="modal-dialog merge-modal-dialog">
+        <div class="modal-header">
+          <div class="modal-header-text">
+            <h2 id="merge-modal-title" class="modal-title">Merge Tickets</h2>
+            <p class="modal-subtitle">Choose the target ticket that will remain open. The selected duplicate tickets will be closed and merged into it.</p>
+          </div>
+          <button id="btn-close-merge-modal" class="modal-close-btn" aria-label="Close modal">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Source Tickets Section -->
+          <div class="merge-section">
+            <div class="merge-section-title">
+              <span>Tickets to merge (will be closed):</span>
+              <span id="merge-source-count-badge" class="merge-badge-source">0 tickets</span>
+            </div>
+            <div id="merge-source-list" class="merge-source-list">
+              <!-- Dynamically rendered source tickets -->
+            </div>
+          </div>
+
+          <!-- Target Ticket Section -->
+          <div class="merge-section">
+            <div class="merge-section-title">
+              <span>Merge into target ticket (will remain open):</span>
+              <span class="merge-required-star">*</span>
+            </div>
+
+            <div class="merge-search-box">
+              <div class="merge-search-input-wrap">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" class="merge-search-icon">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="merge-target-search" class="form-input merge-search-input" placeholder="Search by ticket #, requester name, email, or subject..." autocomplete="off" />
+              </div>
+              <button id="btn-merge-search-go" class="btn btn-secondary btn-sm btn-merge-search" type="button" title="Search tickets in Zendesk">
+                Search
+              </button>
+            </div>
+
+            <!-- Target Candidates List -->
+            <div class="merge-candidates-wrap">
+              <div class="merge-candidates-header">
+                <span id="merge-candidates-title">Select Target Ticket:</span>
+                <span class="merge-candidates-hint">Click a ticket below to select it</span>
+              </div>
+              <div id="merge-target-candidates" class="merge-target-candidates-list">
+                <!-- Dynamically populated candidate target tickets -->
+              </div>
+            </div>
+
+            <!-- Confirmed Target Display -->
+            <div id="merge-selected-target-card" class="merge-selected-target-card hidden">
+              <div class="merge-selected-target-pill">✓ Target Ticket Selected</div>
+              <div id="merge-selected-target-content" class="merge-selected-target-content"></div>
+            </div>
+
+            <!-- Ignorable Organization / Requester Mismatch Warning -->
+            <div id="merge-org-warning" class="merge-warning-banner hidden">
+              <span class="merge-warning-icon">⚠️</span>
+              <div class="merge-warning-content">
+                <div class="merge-warning-title">These tickets don't belong to the same organization</div>
+              </div>
+              <button type="button" class="merge-warning-dismiss" id="btn-dismiss-org-warning" title="Dismiss warning">&times;</button>
+            </div>
+          </div>
+
+          <!-- Comments Section -->
+          <div class="merge-section">
+            <div class="merge-section-title">
+              <span>Comments</span>
+            </div>
+
+            <div class="merge-field-group">
+              <label for="merge-target-comment" class="field-mini-label">Target ticket comment (added to the target ticket):</label>
+              <textarea id="merge-target-comment" class="form-input merge-textarea" rows="2" placeholder="Comment added to target ticket..."></textarea>
+            </div>
+
+            <div class="merge-field-group">
+              <label for="merge-source-comment" class="field-mini-label">Closing ticket comment (added to each merged ticket):</label>
+              <textarea id="merge-source-comment" class="form-input merge-textarea" rows="2" placeholder="Comment added to closing tickets..."></textarea>
+            </div>
+
+            <div class="merge-checkbox-row">
+              <label class="merge-check-label">
+                <input type="checkbox" id="merge-is-public" />
+                <span>Make comment visible to requester (Public comment)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Alert / Error message -->
+          <div id="merge-modal-alert" class="merge-modal-alert hidden"></div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="btn-cancel-merge" class="btn btn-secondary">Cancel</button>
+          <button id="btn-confirm-merge" class="btn btn-primary" disabled>
+            <span id="merge-btn-text">Confirm and Merge</span>
+            <span id="merge-btn-spinner" class="spinner-sm hidden"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- App Toast Notification -->
+    <div id="app-toast" class="app-toast hidden"></div>
+
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>

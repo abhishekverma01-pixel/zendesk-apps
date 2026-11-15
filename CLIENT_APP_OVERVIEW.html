@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Zendesk Views &amp; Duplicates App — Agent User Guide</title>
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.6;
+      color: #2f3941;
+      max-width: 860px;
+      margin: 40px auto;
+      padding: 0 24px;
+    }
+    h1 {
+      color: #17494d;
+      font-size: 26px;
+      border-bottom: 2px solid #d8dcde;
+      padding-bottom: 8px;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: #68737d;
+      margin-bottom: 24px;
+      font-weight: 600;
+    }
+    h2 {
+      color: #1f73b7;
+      font-size: 19px;
+      margin-top: 30px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #edf0f2;
+      padding-bottom: 6px;
+    }
+    h3 {
+      color: #2f3941;
+      font-size: 15.5px;
+      margin-top: 18px;
+      margin-bottom: 8px;
+    }
+    p, li {
+      font-size: 14px;
+      color: #333333;
+    }
+    ul, ol {
+      margin-top: 6px;
+      margin-bottom: 14px;
+      padding-left: 24px;
+    }
+    li {
+      margin-bottom: 6px;
+    }
+    strong {
+      color: #11161b;
+    }
+    .welcome-box {
+      background: #edf7ff;
+      border-left: 4px solid #1f73b7;
+      padding: 14px 18px;
+      margin: 18px 0;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .step-box {
+      background: #f8f9fa;
+      border: 1px solid #e2e8f0;
+      padding: 14px 18px;
+      border-radius: 6px;
+      margin: 14px 0;
+    }
+    .warning-box {
+      background: #fff9e6;
+      border-left: 4px solid #f59e0b;
+      padding: 10px 14px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #78350f;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 13.5px;
+    }
+    th {
+      background: #f1f5f9;
+      color: #1e293b;
+      text-align: left;
+      padding: 10px 14px;
+      border: 1px solid #cbd5e1;
+      font-weight: 700;
+    }
+    td {
+      padding: 10px 14px;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+    }
+    tr:nth-child(even) {
+      background: #f8fafc;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Zendesk Views &amp; Duplicates App</h1>
+  <div class="subtitle">Agent Quick-Start &amp; User Guide</div>
+
+  <div class="welcome-box">
+    <strong>Welcome to the Views Filter &amp; Duplicates App!</strong><br>
+    This quick-start guide will show you how the app works and how to start using it every day to manage your tickets faster, find details without opening extra tabs, and select and merge duplicate customer tickets directly in Zendesk.
+  </div>
+
+  <h2>1. How to Open the App</h2>
+  <ol>
+    <li>Look at the <strong>far-left navigation bar</strong> in Zendesk (the dark icon strip).</li>
+    <li>Click the <strong>Views Description</strong> icon (📊).</li>
+    <li>The app opens right inside your workspace screen.</li>
+  </ol>
+
+  <h2>2. Screen Overview (What You See)</h2>
+  <p>The screen is organized into two simple sections:</p>
+  <ul>
+    <li><strong>Left Sidebar:</strong> Shows all your <strong>Shared Views</strong> (team queues) and <strong>Personal Views</strong> (your own queues), plus a shortcut for <strong>Duplicate tickets</strong> at the bottom.</li>
+    <li><strong>Right Main Area:</strong> Displays the tickets table for the selected view, the <strong>⚡ Filter</strong> button, and the Duplicate Tickets Queue.</li>
+  </ul>
+
+  <h2>3. How to Use the App (Step-by-Step Guide)</h2>
+
+  <h3>Step 1: Select Your View</h3>
+  <ul>
+    <li><strong>Shared Views (Top):</strong> Standard team views like <em>Your unsolved tickets</em>, <em>Unassigned tickets</em>, <em>Pending tickets</em>, <em>Urgent</em>, etc.</li>
+    <li><strong>Personal Views (Below):</strong> Views created specifically for your workflow.</li>
+    <li>Click on any view in the sidebar to load its tickets in the main table.</li>
+  </ul>
+
+  <h3>Step 2: Read Ticket Descriptions Instantly (Hover Preview)</h3>
+  <div class="step-box">
+    <strong>No need to open multiple browser tabs to read tickets!</strong><br>
+    Simply <strong>move your mouse over any ticket subject</strong> in the table. A clean preview card pops up instantly showing:
+    <ul>
+      <li><strong>Ticket ID and Status</strong> (Open, Pending, New).</li>
+      <li><strong>Customer Name, Email, and Channel</strong> (Email, Chat, Phone, Web).</li>
+      <li><strong>Original Problem Description:</strong> The customer's opening issue description (cleanly formatted so you can understand the problem in 5 seconds).</li>
+    </ul>
+    Move your mouse away, and the preview card closes automatically.
+  </div>
+
+  <h3>Step 3: Filter Tickets on the Fly (Click "⚡ Filter")</h3>
+  <p>If a view has many tickets and you want to find specific ones, click the <strong>⚡ Filter</strong> button at the top. A 9-field drawer will open. You can filter by:</p>
+  <ol>
+    <li><strong>Subject / Description:</strong> Type any keyword to find tickets with matching text.</li>
+    <li><strong>Tags:</strong> Type or choose tags using interactive chips.</li>
+    <li><strong>Status:</strong> Focus on <em>Open</em>, <em>Pending</em>, or <em>New</em> tickets.</li>
+    <li><strong>Priority:</strong> Filter by <em>Urgent</em> or <em>High</em> priority issues.</li>
+    <li><strong>Channel:</strong> Filter by source (Email, Chat, Web Form, Phone).</li>
+    <li><strong>Type:</strong> Filter by Incident, Question, Problem, or Task.</li>
+    <li><strong>Requester:</strong> Type a customer's name or email address.</li>
+    <li><strong>Assignee:</strong> Quickly switch to <strong>Assigned to Me</strong> to see only your tickets, or <strong>Unassigned</strong> to grab new tickets.</li>
+    <li><strong>Request Date:</strong> Click 1-click buttons like <strong>"Last 30 Days"</strong>, <strong>"In 2026"</strong>, or pick custom dates.</li>
+  </ol>
+  <p><em>Tip: To clear your search and see all tickets again, click <strong>"Reset All Filters"</strong> on the right side of the filter drawer.</em></p>
+
+  <h3>Step 4: Find and Merge Duplicate Customer Tickets (Native Zendesk Style)</h3>
+  <p>Customers often submit multiple tickets (via email, web forms, or chat) for the same issue. The app automatically detects duplicate requesters and lets you select and merge their tickets directly in Zendesk.</p>
+  <div class="step-box">
+    <strong>How to select and merge duplicate tickets:</strong>
+    <ol>
+      <li>Click <strong>Duplicate tickets</strong> at the bottom of the left sidebar (shows an orange badge with total duplicate customer count).</li>
+      <li>The <strong>Duplicate Tickets Queue</strong> displays all customers with multiple open tickets.</li>
+      <li><strong>Select Tickets with Checkboxes:</strong>
+        <ul>
+          <li>Each ticket in the customer card has a checkbox in front of it.</li>
+          <li>Tick the checkboxes for the tickets you want to merge (e.g. 2 or 3 tickets), or click <strong>Select all</strong> in the customer header.</li>
+        </ul>
+      </li>
+      <li><strong>Click the Dynamic "Merge" Button:</strong>
+        <ul>
+          <li>As soon as you tick tickets, a dynamic <strong>⚡ Merge (X)</strong> button appears at the bottom of that customer card (e.g. <code>⚡ Merge (3)</code>).</li>
+          <li>Click <strong>⚡ Merge</strong> to open the Zendesk-style Search &amp; Merge dialog.</li>
+        </ul>
+      </li>
+      <li><strong>Search &amp; Select Target Ticket:</strong>
+        <ul>
+          <li><strong>Search by Email, Name, Ticket ID, or Subject:</strong> You can search by entering the customer's email, name, ticket ID, or subject in the search box.</li>
+          <li>Pick which ticket will stay open by clicking it in the candidate list.</li>
+          <li><strong>Ignorable Warning:</strong> If the selected target ticket has a different requester or organization, the alert <em>"These tickets don't belong to the same organization"</em> will appear. <strong>This alert is completely ignorable</strong>—it does not block you, and you can proceed with the merge.</li>
+        </ul>
+      </li>
+      <li><strong>Review Comments &amp; Confirm:</strong>
+        <ul>
+          <li>Review or edit the comments added to the target ticket and closing tickets.</li>
+          <li>Click <strong>"Confirm and Merge"</strong>: The app directly merges the tickets in Zendesk and updates the queue automatically!</li>
+        </ul>
+      </li>
+    </ol>
+  </div>
+
+  <h2>4. Quick Cheatsheet for Agents</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 45%;">What do you want to do?</th>
+        <th>How to do it in the app:</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Check your assigned tickets</strong></td>
+        <td>Click <em>Your unsolved tickets</em> or open filter and set Assignee to <em>Assigned to Me</em>.</td>
+      </tr>
+      <tr>
+        <td><strong>Read ticket details fast</strong></td>
+        <td>Hover your mouse over the ticket subject line.</td>
+      </tr>
+      <tr>
+        <td><strong>Find tickets with a specific tag or keyword</strong></td>
+        <td>Click <strong>⚡ Filter</strong>, type in the <em>Subject</em> or <em>Tags</em> box.</td>
+      </tr>
+      <tr>
+        <td><strong>Select duplicate customer tickets</strong></td>
+        <td>In <strong>Duplicate tickets</strong>, click the checkboxes in front of the tickets you want to merge.</td>
+      </tr>
+      <tr>
+        <td><strong>Search target ticket by name or email</strong></td>
+        <td>In the Merge dialog, type the requester's name, email, ticket #, or subject in the search box.</td>
+      </tr>
+      <tr>
+        <td><strong>Merge tickets across different orgs</strong></td>
+        <td>Select target ticket; if <em>"These tickets don't belong to the same organization"</em> appears, ignore it and click <strong>Confirm and Merge</strong>.</td>
+      </tr>
+      <tr>
+        <td><strong>Clear all active filters</strong></td>
+        <td>Click <strong>Reset All Filters</strong> inside the filter drawer.</td>
+      </tr>
+    </tbody>
+  </table>
+
+</body>
+</html>
