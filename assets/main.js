@@ -58,7 +58,9 @@
       candidateTickets: [],
       targetTicket: null,
       searchQuery: '',
-      isSubmitting: false
+      isSubmitting: false,
+      sourceCommentIsPublic: false,
+      targetCommentIsPublic: false
     }
   };
 
@@ -147,9 +149,15 @@
     mergeSelectedTargetContent: document.getElementById('merge-selected-target-content'),
     mergeOrgWarning: document.getElementById('merge-org-warning'),
     btnDismissOrgWarning: document.getElementById('btn-dismiss-org-warning'),
+    mergeDestinationBadge: document.getElementById('merge-destination-badge'),
     mergeTargetComment: document.getElementById('merge-target-comment'),
     mergeSourceComment: document.getElementById('merge-source-comment'),
-    mergeIsPublic: document.getElementById('merge-is-public'),
+    btnPrivacyClosing: document.getElementById('btn-privacy-closing'),
+    menuPrivacyClosing: document.getElementById('menu-privacy-closing'),
+    textPrivacyClosing: document.getElementById('text-privacy-closing'),
+    btnPrivacyDestination: document.getElementById('btn-privacy-destination'),
+    menuPrivacyDestination: document.getElementById('menu-privacy-destination'),
+    textPrivacyDestination: document.getElementById('text-privacy-destination'),
     mergeModalAlert: document.getElementById('merge-modal-alert'),
     appToast: document.getElementById('app-toast'),
 
@@ -1526,6 +1534,205 @@
     }
   }
 
+  function setComposerPrivacy(targetType, isPublic) {
+    if (targetType === 'closing') {
+      state.mergeState.sourceCommentIsPublic = isPublic;
+      if (elements.textPrivacyClosing) {
+        elements.textPrivacyClosing.textContent = isPublic ? 'Public reply' : 'Internal note';
+      }
+      if (elements.mergeSourceComment) {
+        elements.mergeSourceComment.classList.toggle('is-internal', !isPublic);
+      }
+      if (elements.menuPrivacyClosing) {
+        const items = elements.menuPrivacyClosing.querySelectorAll('.zd-privacy-item');
+        items.forEach(item => {
+          const val = item.getAttribute('data-value');
+          const isSelected = (val === 'public' && isPublic) || (val === 'internal' && !isPublic);
+          item.classList.toggle('selected', isSelected);
+          const check = item.querySelector('.zd-item-check');
+          if (check) check.classList.toggle('hidden', !isSelected);
+        });
+        elements.menuPrivacyClosing.classList.add('hidden');
+      }
+    } else if (targetType === 'destination') {
+      state.mergeState.targetCommentIsPublic = isPublic;
+      if (elements.textPrivacyDestination) {
+        elements.textPrivacyDestination.textContent = isPublic ? 'Public reply' : 'Internal note';
+      }
+      if (elements.mergeTargetComment) {
+        elements.mergeTargetComment.classList.toggle('is-internal', !isPublic);
+      }
+      if (elements.menuPrivacyDestination) {
+        const items = elements.menuPrivacyDestination.querySelectorAll('.zd-privacy-item');
+        items.forEach(item => {
+          const val = item.getAttribute('data-value');
+          const isSelected = (val === 'public' && isPublic) || (val === 'internal' && !isPublic);
+          item.classList.toggle('selected', isSelected);
+          const check = item.querySelector('.zd-item-check');
+          if (check) check.classList.toggle('hidden', !isSelected);
+        });
+        elements.menuPrivacyDestination.classList.add('hidden');
+      }
+    }
+  }
+
+  function applyToolbarFormatting(textarea, action) {
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const selected = text.substring(start, end);
+
+    let replacement = '';
+    let newCursorPos = start;
+    let newSelectionEnd = end;
+
+    switch (action) {
+      case 'bold':
+        if (selected) {
+          replacement = `**${selected}**`;
+          newCursorPos = start + 2;
+          newSelectionEnd = end + 2;
+        } else {
+          replacement = '**bold text**';
+          newCursorPos = start + 2;
+          newSelectionEnd = start + 11;
+        }
+        break;
+
+      case 'italic':
+        if (selected) {
+          replacement = `*${selected}*`;
+          newCursorPos = start + 1;
+          newSelectionEnd = end + 1;
+        } else {
+          replacement = '*italic text*';
+          newCursorPos = start + 1;
+          newSelectionEnd = start + 12;
+        }
+        break;
+
+      case 'underline':
+        if (selected) {
+          replacement = `<u>${selected}</u>`;
+          newCursorPos = start + 3;
+          newSelectionEnd = end + 3;
+        } else {
+          replacement = '<u>underlined text</u>';
+          newCursorPos = start + 3;
+          newSelectionEnd = start + 18;
+        }
+        break;
+
+      case 'bullet':
+        if (selected) {
+          const lines = selected.split('\n');
+          replacement = lines.map(line => line.startsWith('• ') ? line.substring(2) : `• ${line}`).join('\n');
+          newCursorPos = start;
+          newSelectionEnd = start + replacement.length;
+        } else {
+          replacement = '• ';
+          newCursorPos = start + 2;
+          newSelectionEnd = newCursorPos;
+        }
+        break;
+
+      case 'numbered':
+        if (selected) {
+          const lines = selected.split('\n');
+          replacement = lines.map((line, idx) => {
+            const stripped = line.replace(/^\d+\.\s*/, '');
+            return `${idx + 1}. ${stripped}`;
+          }).join('\n');
+          newCursorPos = start;
+          newSelectionEnd = start + replacement.length;
+        } else {
+          replacement = '1. ';
+          newCursorPos = start + 3;
+          newSelectionEnd = newCursorPos;
+        }
+        break;
+
+      case 'indent':
+        if (selected) {
+          const lines = selected.split('\n');
+          replacement = lines.map(line => '  ' + line).join('\n');
+          newCursorPos = start;
+          newSelectionEnd = start + replacement.length;
+        } else {
+          replacement = '  ';
+          newCursorPos = start + 2;
+          newSelectionEnd = newCursorPos;
+        }
+        break;
+
+      case 'outdent':
+        if (selected) {
+          const lines = selected.split('\n');
+          replacement = lines.map(line => line.replace(/^(  |\t)/, '')).join('\n');
+          newCursorPos = start;
+          newSelectionEnd = start + replacement.length;
+        } else {
+          return;
+        }
+        break;
+
+      case 'quote':
+        if (selected) {
+          const lines = selected.split('\n');
+          replacement = lines.map(line => line.startsWith('> ') ? line.substring(2) : `> ${line}`).join('\n');
+          newCursorPos = start;
+          newSelectionEnd = start + replacement.length;
+        } else {
+          replacement = '> ';
+          newCursorPos = start + 2;
+          newSelectionEnd = newCursorPos;
+        }
+        break;
+
+      case 'code':
+        if (selected) {
+          replacement = `\`${selected}\``;
+          newCursorPos = start + 1;
+          newSelectionEnd = end + 1;
+        } else {
+          replacement = '`code`';
+          newCursorPos = start + 1;
+          newSelectionEnd = start + 5;
+        }
+        break;
+
+      case 'codeblock':
+        if (selected) {
+          replacement = `\n\`\`\`\n${selected}\n\`\`\`\n`;
+          newCursorPos = start + 5;
+          newSelectionEnd = start + 5 + selected.length;
+        } else {
+          replacement = '\n```\ncode block\n```\n';
+          newCursorPos = start + 5;
+          newSelectionEnd = start + 15;
+        }
+        break;
+
+      case 'link':
+        const linkUrl = prompt('Enter link URL (e.g. https://example.com):', 'https://');
+        if (!linkUrl) return;
+        const linkText = selected || 'link text';
+        replacement = `[${linkText}](${linkUrl})`;
+        newCursorPos = start + 1;
+        newSelectionEnd = start + 1 + linkText.length;
+        break;
+
+      default:
+        return;
+    }
+
+    textarea.value = text.substring(0, start) + replacement + text.substring(end);
+    textarea.focus();
+    textarea.setSelectionRange(newCursorPos, newSelectionEnd);
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
   function openMergeModal(customerId) {
     const customer = state.duplicateRequesters.find(c => String(c.id) === String(customerId));
     if (!customer || !customer.tickets || customer.tickets.length === 0) return;
@@ -1549,7 +1756,9 @@
       candidateTickets: [...customer.tickets],
       targetTicket: null,
       searchQuery: '',
-      isSubmitting: false
+      isSubmitting: false,
+      sourceCommentIsPublic: false,
+      targetCommentIsPublic: false
     };
 
     // Render source tickets list
@@ -1569,10 +1778,14 @@
     if (elements.mergeBtnText) elements.mergeBtnText.textContent = 'Confirm and Merge';
     if (elements.mergeBtnSpinner) elements.mergeBtnSpinner.classList.add('hidden');
 
-    // Default comments
+    // Reset composers privacy & textareas to Zendesk native defaults
+    setComposerPrivacy('closing', false);
+    setComposerPrivacy('destination', false);
+    if (elements.mergeDestinationBadge) elements.mergeDestinationBadge.textContent = '#---';
     if (elements.mergeTargetComment) elements.mergeTargetComment.value = '';
     if (elements.mergeSourceComment) elements.mergeSourceComment.value = '';
-    if (elements.mergeIsPublic) elements.mergeIsPublic.checked = false;
+    if (elements.menuPrivacyClosing) elements.menuPrivacyClosing.classList.add('hidden');
+    if (elements.menuPrivacyDestination) elements.menuPrivacyDestination.classList.add('hidden');
 
     // Open Modal
     if (elements.mergeModal) {
@@ -1763,12 +1976,31 @@
       }
     }
 
-    // Pre-fill comments
-    if (elements.mergeTargetComment) {
-      elements.mergeTargetComment.value = `Ticket(s) #${closingIds.join(', #')} have been merged into this ticket.`;
+    // Update Destination Badge
+    if (elements.mergeDestinationBadge) {
+      elements.mergeDestinationBadge.textContent = `#${ticket.id}`;
     }
+
+    // Pre-fill native Zendesk comments
+    const targetSubject = (ticket.subject && ticket.subject.trim()) ? ` ${ticket.subject.trim()}.` : '.';
+    const defaultClosingComment = `Merged into #${ticket.id}${targetSubject} This ticket is now closed.`;
+
+    let defaultDestComment = '';
+    if (closingIds.length === 1) {
+      defaultDestComment = `This ticket now includes merged content from #${closingIds[0]}.`;
+    } else if (closingIds.length === 2) {
+      defaultDestComment = `This ticket now includes merged content from #${closingIds[0]} and #${closingIds[1]}.`;
+    } else if (closingIds.length > 2) {
+      defaultDestComment = `This ticket now includes merged content from #${closingIds.slice(0, -1).join(', #')} and #${closingIds[closingIds.length - 1]}.`;
+    } else {
+      defaultDestComment = 'This ticket now includes merged content.';
+    }
+
     if (elements.mergeSourceComment) {
-      elements.mergeSourceComment.value = `This ticket was merged into ticket #${ticket.id}.`;
+      elements.mergeSourceComment.value = defaultClosingComment;
+    }
+    if (elements.mergeTargetComment) {
+      elements.mergeTargetComment.value = defaultDestComment;
     }
 
     // Enable Confirm Button - NOTE: warning is IGNORABLE and DOES NOT block or disable button!
@@ -1908,16 +2140,31 @@
     if (elements.mergeBtnSpinner) elements.mergeBtnSpinner.classList.remove('hidden');
     hideMergeAlert();
 
-    const isPublic = elements.mergeIsPublic ? elements.mergeIsPublic.checked : false;
-    const targetComment = (elements.mergeTargetComment && elements.mergeTargetComment.value.trim()) || `Ticket(s) #${closingIds.join(', #')} have been merged into this ticket.`;
-    const sourceComment = (elements.mergeSourceComment && elements.mergeSourceComment.value.trim()) || `This ticket was merged into ticket #${targetId}.`;
+    const targetSubject = (state.mergeState.targetTicket.subject && state.mergeState.targetTicket.subject.trim())
+      ? ` ${state.mergeState.targetTicket.subject.trim()}.`
+      : '.';
+    const defaultSourceComment = `Merged into #${targetId}${targetSubject} This ticket is now closed.`;
+
+    let defaultTargetComment = '';
+    if (closingIds.length === 1) {
+      defaultTargetComment = `This ticket now includes merged content from #${closingIds[0]}.`;
+    } else if (closingIds.length === 2) {
+      defaultTargetComment = `This ticket now includes merged content from #${closingIds[0]} and #${closingIds[1]}.`;
+    } else if (closingIds.length > 2) {
+      defaultTargetComment = `This ticket now includes merged content from #${closingIds.slice(0, -1).join(', #')} and #${closingIds[closingIds.length - 1]}.`;
+    } else {
+      defaultTargetComment = 'This ticket now includes merged content.';
+    }
+
+    const targetComment = (elements.mergeTargetComment && elements.mergeTargetComment.value.trim()) || defaultTargetComment;
+    const sourceComment = (elements.mergeSourceComment && elements.mergeSourceComment.value.trim()) || defaultSourceComment;
 
     const payload = {
       ids: closingIds,
       target_comment: targetComment,
       source_comment: sourceComment,
-      target_comment_is_public: isPublic,
-      source_comment_is_public: isPublic
+      target_comment_is_public: !!state.mergeState.targetCommentIsPublic,
+      source_comment_is_public: !!state.mergeState.sourceCommentIsPublic
     };
 
     if (state.client) {
@@ -2325,6 +2572,48 @@
       if (e.target.closest('#btn-dismiss-org-warning')) {
         if (elements.mergeOrgWarning) elements.mergeOrgWarning.classList.add('hidden');
         return;
+      }
+
+      // Privacy Dropdown Toggle Button
+      const privacyBtn = e.target.closest('.zd-privacy-btn');
+      if (privacyBtn) {
+        const target = privacyBtn.getAttribute('data-target');
+        if (target === 'closing') {
+          if (elements.menuPrivacyClosing) elements.menuPrivacyClosing.classList.toggle('hidden');
+          if (elements.menuPrivacyDestination) elements.menuPrivacyDestination.classList.add('hidden');
+        } else if (target === 'destination') {
+          if (elements.menuPrivacyDestination) elements.menuPrivacyDestination.classList.toggle('hidden');
+          if (elements.menuPrivacyClosing) elements.menuPrivacyClosing.classList.add('hidden');
+        }
+        return;
+      }
+
+      // Privacy Dropdown Menu Item Click
+      const privacyItem = e.target.closest('.zd-privacy-item');
+      if (privacyItem) {
+        const target = privacyItem.getAttribute('data-target');
+        const val = privacyItem.getAttribute('data-value');
+        setComposerPrivacy(target, val === 'public');
+        return;
+      }
+
+      // Formatting Toolbar Button Click
+      const toolBtn = e.target.closest('.zd-tool-btn');
+      if (toolBtn) {
+        const action = toolBtn.getAttribute('data-action');
+        const toolbar = toolBtn.closest('.zd-composer-toolbar');
+        const textareaId = toolbar ? toolbar.getAttribute('data-textarea') : null;
+        const textarea = textareaId ? document.getElementById(textareaId) : null;
+        if (textarea && action) {
+          applyToolbarFormatting(textarea, action);
+        }
+        return;
+      }
+
+      // Click outside privacy dropdowns to close them
+      if (!e.target.closest('.zd-privacy-select-wrap')) {
+        if (elements.menuPrivacyClosing) elements.menuPrivacyClosing.classList.add('hidden');
+        if (elements.menuPrivacyDestination) elements.menuPrivacyDestination.classList.add('hidden');
       }
 
       // Search external ticket button

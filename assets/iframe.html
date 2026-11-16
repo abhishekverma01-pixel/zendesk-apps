@@ -374,28 +374,207 @@
             </div>
           </div>
 
-          <!-- Comments Section -->
-          <div class="merge-section">
-            <div class="merge-section-title">
-              <span>Comments</span>
+          <!-- Comments Section (Zendesk Native Style) -->
+          <div class="merge-section zd-merge-comments-section">
+            
+            <!-- Composer 1: Closing tickets comment -->
+            <div class="zd-composer-group">
+              <div class="zd-composer-label-row">
+                <span class="zd-composer-heading">These tickets will close with this comment</span>
+              </div>
+              <div class="zd-comment-composer" id="composer-closing">
+                <div class="zd-composer-topbar">
+                  <div class="zd-privacy-select-wrap">
+                    <button type="button" class="zd-privacy-btn" id="btn-privacy-closing" data-target="closing">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" class="zd-privacy-icon">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
+                      <span class="zd-privacy-current-text" id="text-privacy-closing">Internal note</span>
+                      <svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" stroke-width="2.5" fill="none">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </button>
+                    <!-- Privacy Dropdown Menu -->
+                    <div class="zd-privacy-menu hidden" id="menu-privacy-closing">
+                      <div class="zd-privacy-item selected" data-value="internal" data-target="closing">
+                        <div class="zd-privacy-item-left">
+                          <span class="zd-item-icon">🔒</span>
+                          <span>Internal note</span>
+                        </div>
+                        <span class="zd-item-check">✓</span>
+                      </div>
+                      <div class="zd-privacy-item" data-value="public" data-target="closing">
+                        <div class="zd-privacy-item-left">
+                          <span class="zd-item-icon">🌐</span>
+                          <span>Public reply</span>
+                        </div>
+                        <span class="zd-item-check hidden">✓</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Textarea -->
+                <textarea id="merge-source-comment" class="zd-composer-textarea is-internal" rows="3" placeholder="Closing tickets comment..."></textarea>
+
+                <!-- Formatting Toolbar -->
+                <div class="zd-composer-toolbar" data-textarea="merge-source-comment">
+                  <button type="button" class="zd-tool-btn" data-action="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+                  <button type="button" class="zd-tool-btn" data-action="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+                  <button type="button" class="zd-tool-btn" data-action="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+                  <span class="zd-tool-divider"></span>
+                  <button type="button" class="zd-tool-btn" data-action="bullet" title="Bullet list">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <line x1="9" y1="6" x2="20" y2="6"></line>
+                      <line x1="9" y1="12" x2="20" y2="12"></line>
+                      <line x1="9" y1="18" x2="20" y2="18"></line>
+                      <circle cx="4" cy="6" r="1.5" fill="currentColor"></circle>
+                      <circle cx="4" cy="12" r="1.5" fill="currentColor"></circle>
+                      <circle cx="4" cy="18" r="1.5" fill="currentColor"></circle>
+                    </svg>
+                  </button>
+                  <button type="button" class="zd-tool-btn" data-action="numbered" title="Numbered list">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <line x1="10" y1="6" x2="21" y2="6"></line>
+                      <line x1="10" y1="12" x2="21" y2="12"></line>
+                      <line x1="10" y1="18" x2="21" y2="18"></line>
+                      <text x="2" y="8" font-size="7" font-weight="bold" fill="currentColor" stroke="none">1</text>
+                      <text x="2" y="15" font-size="7" font-weight="bold" fill="currentColor" stroke="none">2</text>
+                    </svg>
+                  </button>
+                  <span class="zd-tool-divider"></span>
+                  <button type="button" class="zd-tool-btn" data-action="outdent" title="Decrease indent">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <polyline points="7 8 3 12 7 16"></polyline>
+                      <line x1="21" y1="6" x2="11" y2="6"></line>
+                      <line x1="21" y1="12" x2="11" y2="12"></line>
+                      <line x1="21" y1="18" x2="11" y2="18"></line>
+                    </svg>
+                  </button>
+                  <button type="button" class="zd-tool-btn" data-action="indent" title="Increase indent">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <polyline points="17 8 21 12 17 16"></polyline>
+                      <line x1="3" y1="6" x2="13" y2="6"></line>
+                      <line x1="3" y1="12" x2="13" y2="12"></line>
+                      <line x1="3" y1="18" x2="13" y2="18"></line>
+                    </svg>
+                  </button>
+                  <span class="zd-tool-divider"></span>
+                  <button type="button" class="zd-tool-btn zd-tool-text" data-action="quote" title="Quote">99</button>
+                  <button type="button" class="zd-tool-btn zd-tool-text" data-action="code" title="Inline code">&lt;/&gt;</button>
+                  <button type="button" class="zd-tool-btn zd-tool-text" data-action="codeblock" title="Code block">&gt;_</button>
+                  <span class="zd-tool-divider"></span>
+                  <button type="button" class="zd-tool-btn" data-action="link" title="Insert link">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div class="merge-field-group">
-              <label for="merge-target-comment" class="field-mini-label">Target ticket comment (added to the target ticket):</label>
-              <textarea id="merge-target-comment" class="form-input merge-textarea" rows="2" placeholder="Comment added to target ticket..."></textarea>
+            <!-- Composer 2: Destination ticket comment -->
+            <div class="zd-composer-group">
+              <div class="zd-composer-label-row">
+                <span class="zd-composer-heading">Destination ticket</span>
+                <span id="merge-destination-badge" class="zd-destination-badge">#---</span>
+                <span class="zd-destination-hint">This ticket will receive this comment</span>
+              </div>
+              <div class="zd-comment-composer" id="composer-destination">
+                <div class="zd-composer-topbar">
+                  <div class="zd-privacy-select-wrap">
+                    <button type="button" class="zd-privacy-btn" id="btn-privacy-destination" data-target="destination">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" class="zd-privacy-icon">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
+                      <span class="zd-privacy-current-text" id="text-privacy-destination">Internal note</span>
+                      <svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" stroke-width="2.5" fill="none">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </button>
+                    <!-- Privacy Dropdown Menu -->
+                    <div class="zd-privacy-menu hidden" id="menu-privacy-destination">
+                      <div class="zd-privacy-item selected" data-value="internal" data-target="destination">
+                        <div class="zd-privacy-item-left">
+                          <span class="zd-item-icon">🔒</span>
+                          <span>Internal note</span>
+                        </div>
+                        <span class="zd-item-check">✓</span>
+                      </div>
+                      <div class="zd-privacy-item" data-value="public" data-target="destination">
+                        <div class="zd-privacy-item-left">
+                          <span class="zd-item-icon">🌐</span>
+                          <span>Public reply</span>
+                        </div>
+                        <span class="zd-item-check hidden">✓</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Textarea -->
+                <textarea id="merge-target-comment" class="zd-composer-textarea is-internal" rows="3" placeholder="Destination ticket comment..."></textarea>
+
+                <!-- Formatting Toolbar -->
+                <div class="zd-composer-toolbar" data-textarea="merge-target-comment">
+                  <button type="button" class="zd-tool-btn" data-action="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+                  <button type="button" class="zd-tool-btn" data-action="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+                  <button type="button" class="zd-tool-btn" data-action="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+                  <span class="zd-tool-divider"></span>
+                  <button type="button" class="zd-tool-btn" data-action="bullet" title="Bullet list">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <line x1="9" y1="6" x2="20" y2="6"></line>
+                      <line x1="9" y1="12" x2="20" y2="12"></line>
+                      <line x1="9" y1="18" x2="20" y2="18"></line>
+                      <circle cx="4" cy="6" r="1.5" fill="currentColor"></circle>
+                      <circle cx="4" cy="12" r="1.5" fill="currentColor"></circle>
+                      <circle cx="4" cy="18" r="1.5" fill="currentColor"></circle>
+                    </svg>
+                  </button>
+                  <button type="button" class="zd-tool-btn" data-action="numbered" title="Numbered list">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <line x1="10" y1="6" x2="21" y2="6"></line>
+                      <line x1="10" y1="12" x2="21" y2="12"></line>
+                      <line x1="10" y1="18" x2="21" y2="18"></line>
+                      <text x="2" y="8" font-size="7" font-weight="bold" fill="currentColor" stroke="none">1</text>
+                      <text x="2" y="15" font-size="7" font-weight="bold" fill="currentColor" stroke="none">2</text>
+                    </svg>
+                  </button>
+                  <span class="zd-tool-divider"></span>
+                  <button type="button" class="zd-tool-btn" data-action="outdent" title="Decrease indent">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <polyline points="7 8 3 12 7 16"></polyline>
+                      <line x1="21" y1="6" x2="11" y2="6"></line>
+                      <line x1="21" y1="12" x2="11" y2="12"></line>
+                      <line x1="21" y1="18" x2="11" y2="18"></line>
+                    </svg>
+                  </button>
+                  <button type="button" class="zd-tool-btn" data-action="indent" title="Increase indent">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <polyline points="17 8 21 12 17 16"></polyline>
+                      <line x1="3" y1="6" x2="13" y2="6"></line>
+                      <line x1="3" y1="12" x2="13" y2="12"></line>
+                      <line x1="3" y1="18" x2="13" y2="18"></line>
+                    </svg>
+                  </button>
+                  <span class="zd-tool-divider"></span>
+                  <button type="button" class="zd-tool-btn zd-tool-text" data-action="quote" title="Quote">99</button>
+                  <button type="button" class="zd-tool-btn zd-tool-text" data-action="code" title="Inline code">&lt;/&gt;</button>
+                  <button type="button" class="zd-tool-btn zd-tool-text" data-action="codeblock" title="Code block">&gt;_</button>
+                  <span class="zd-tool-divider"></span>
+                  <button type="button" class="zd-tool-btn" data-action="link" title="Insert link">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div class="merge-field-group">
-              <label for="merge-source-comment" class="field-mini-label">Closing ticket comment (added to each merged ticket):</label>
-              <textarea id="merge-source-comment" class="form-input merge-textarea" rows="2" placeholder="Comment added to closing tickets..."></textarea>
-            </div>
-
-            <div class="merge-checkbox-row">
-              <label class="merge-check-label">
-                <input type="checkbox" id="merge-is-public" />
-                <span>Make comment visible to requester (Public comment)</span>
-              </label>
-            </div>
           </div>
 
           <!-- Alert / Error message -->

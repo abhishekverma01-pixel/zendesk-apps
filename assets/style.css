@@ -1807,44 +1807,209 @@ html, body {
   text-align: center;
 }
 
-.merge-field-group {
+/* Zendesk Native Comment Composer */
+.zd-merge-comments-section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 14px;
 }
 
-.merge-textarea {
-  width: 100%;
-  box-sizing: border-box;
-  font-family: var(--zd-font-sans);
-  font-size: 11.5px;
-  padding: 6px 8px;
-  border: 1px solid #cfd7df;
-  border-radius: 4px;
-  resize: vertical;
-  min-height: 48px;
+.zd-composer-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.merge-textarea:focus {
-  border-color: var(--zd-blue);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(31, 115, 183, 0.15);
-}
-
-.merge-checkbox-row {
+.zd-composer-label-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 2px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.merge-check-label {
+.zd-composer-heading {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2f3941;
+}
+
+.zd-destination-badge {
+  background: #e9ebed;
+  color: #2f3941;
+  font-weight: 700;
+  font-family: var(--zd-font-mono);
+  font-size: 11.5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.zd-destination-hint {
+  font-size: 12px;
+  color: #68737d;
+}
+
+.zd-comment-composer {
+  border: 1px solid #d8dcde;
+  border-radius: 6px;
+  background: #ffffff;
+  overflow: visible;
+  position: relative;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.zd-comment-composer:focus-within {
+  border-color: #1f73b7;
+  box-shadow: 0 0 0 2px rgba(31, 115, 183, 0.18);
+}
+
+.zd-composer-topbar {
+  padding: 6px 10px;
+  background: #ffffff;
+  border-bottom: 1px solid #edeef0;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.zd-privacy-select-wrap {
+  position: relative;
+}
+
+.zd-privacy-btn {
+  background: transparent;
+  border: none;
+  font-family: var(--zd-font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #2f3941;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 4px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
-  color: var(--zd-text);
+  transition: background 0.12s;
+}
+
+.zd-privacy-btn:hover {
+  background: #f1f3f5;
+}
+
+.zd-privacy-icon {
+  color: #52606d;
+}
+
+.zd-privacy-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: #ffffff;
+  border: 1px solid #d8dcde;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 155px;
+  padding: 4px 0;
+  animation: fadeIn 0.12s ease-out;
+}
+
+.zd-privacy-item {
+  padding: 8px 12px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   cursor: pointer;
+  color: #2f3941;
+  transition: background 0.1s;
+}
+
+.zd-privacy-item:hover {
+  background: #f1f5f9;
+}
+
+.zd-privacy-item.selected {
+  font-weight: 600;
+  color: #1f73b7;
+}
+
+.zd-privacy-item-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.zd-item-check {
+  color: #1f73b7;
+  font-weight: 700;
+}
+
+.zd-composer-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+  font-family: var(--zd-font-sans);
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 80px;
+  color: #2f3941;
+  background: #ffffff;
+  display: block;
+}
+
+.zd-composer-textarea.is-internal {
+  background: #fff8ec; /* Exact Zendesk internal note warm cream/yellow */
+}
+
+.zd-composer-toolbar {
+  padding: 4px 8px;
+  background: #ffffff;
+  border-top: 1px solid #edeef0;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.zd-tool-btn {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  width: 25px;
+  height: 25px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #52606d;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.1s, color 0.1s;
+  padding: 0;
+}
+
+.zd-tool-btn:hover {
+  background: #eef2f5;
+  color: #1f73b7;
+}
+
+.zd-tool-text {
+  font-family: var(--zd-font-mono);
+  font-size: 11px;
+}
+
+.zd-tool-divider {
+  height: 16px;
+  width: 1px;
+  background: #d8dcde;
+  margin: 0 4px;
 }
 
 .merge-modal-alert {
