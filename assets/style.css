@@ -2358,6 +2358,118 @@ html, body {
   max-width: 360px;
 }
 
+/* ==========================================
+   ZENDESK NATIVE LINK POPOVER DIALOG
+   ========================================== */
+.zd-link-popover {
+  position: fixed;
+  width: 320px;
+  background: #ffffff;
+  border: 1px solid #d8dcde;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.08);
+  padding: 16px 20px 16px 20px;
+  z-index: 99999;
+  box-sizing: border-box;
+  animation: zdLinkPopFade 0.14s ease-out;
+}
+
+@keyframes zdLinkPopFade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.zd-link-field-group {
+  margin-bottom: 14px;
+}
+
+.zd-link-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2f3941;
+  margin-bottom: 6px;
+  user-select: none;
+}
+
+.zd-link-input {
+  width: 100%;
+  height: 36px;
+  box-sizing: border-box;
+  border: 1px solid #cfd7df;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-size: 14px;
+  color: #2f3941;
+  background: #ffffff;
+  outline: none;
+  font-family: var(--zd-font-sans);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.zd-link-input:focus {
+  border-color: #1f73b7;
+  box-shadow: 0 0 0 2px rgba(31, 115, 183, 0.2);
+}
+
+.zd-link-input.input-error {
+  border-color: #cc3340;
+  box-shadow: 0 0 0 2px rgba(204, 51, 64, 0.2);
+}
+
+.zd-link-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.zd-link-btn-cancel {
+  background: transparent;
+  border: none;
+  color: #1f73b7;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 4px;
+  transition: background 0.12s, color 0.12s;
+  font-family: var(--zd-font-sans);
+}
+
+.zd-link-btn-cancel:hover {
+  text-decoration: underline;
+  background: #f0f7fc;
+}
+
+.zd-link-btn-add {
+  background: #1f73b7;
+  border: none;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 7px 18px;
+  border-radius: 4px;
+  font-family: var(--zd-font-sans);
+  transition: background 0.15s;
+}
+
+.zd-link-btn-add:hover {
+  background: #144a75;
+}
+
+.zd-link-btn-add:active {
+  background: #0f3554;
+}
+
 .hidden {
   display: none !important;
 }

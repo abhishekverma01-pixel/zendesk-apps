@@ -44,6 +44,9 @@
     currentPage: 1,
     selectedViewTicketIds: new Set(),
 
+    // Zendesk Native Link Popover
+    linkPopoverState: null,
+
     // Duplicate Customers State & Pagination (10 Customer Groups per page)
     duplicateRequesters: [],
     dupPageSize: 10,
@@ -168,6 +171,13 @@
     textPrivacyDestination: document.getElementById('text-privacy-destination'),
     mergeModalAlert: document.getElementById('merge-modal-alert'),
     appToast: document.getElementById('app-toast'),
+
+    // Zendesk Native Link Popover
+    zdLinkPopover: document.getElementById('zd-link-popover'),
+    zdLinkUrl: document.getElementById('zd-link-url'),
+    zdLinkText: document.getElementById('zd-link-text'),
+    btnCancelLink: document.getElementById('btn-cancel-link'),
+    btnAddLink: document.getElementById('btn-add-link'),
 
     // Bulk Delete Modal Elements
     deleteModal: document.getElementById('delete-modal'),
@@ -1966,29 +1976,10 @@
       }
 
       case 'link': {
-        const sel = window.getSelection();
-        const selectedText = sel ? sel.toString().trim() : '';
-        const url = prompt('Enter link URL (e.g. https://example.com):', 'https://');
-        if (url && url.trim()) {
-          const cleanUrl = url.trim();
-          if (selectedText) {
-            document.execCommand('createLink', false, cleanUrl);
-          } else {
-            const linkText = prompt('Enter link text:', cleanUrl) || cleanUrl;
-            const a = document.createElement('a');
-            a.href = cleanUrl;
-            a.target = '_blank';
-            a.rel = 'noopener';
-            a.textContent = linkText;
-            if (sel && sel.rangeCount > 0) {
-              const range = sel.getRangeAt(0);
-              range.insertNode(a);
-            } else {
-              editor.appendChild(a);
-            }
-          }
-        }
-        break;
+        const toolbar = editor.parentElement ? editor.parentElement.querySelector('.zd-composer-toolbar') : null;
+        const linkBtn = toolbar ? toolbar.querySelector('[data-action="link"]') : null;
+        openLinkPopover(editor, linkBtn);
+        return;
       }
 
       default:
@@ -1996,6 +1987,166 @@
     }
 
     updateComposerActiveToolbar(editor);
+  }
+
+  function openLinkPopover(editor, linkBtn) {
+    if (!elements.zdLinkPopover) return;
+
+    // If already open for this editor & button, toggle close
+    if (!elements.zdLinkPopover.classList.contains('hidden') && state.linkPopoverState && state.linkPopoverState.editor === editor) {
+      closeLinkPopover();
+      return;
+    }
+
+    state.linkPopoverState = {
+      editor: editor,
+      linkBtn: linkBtn,
+      savedRange: null,
+      editingAnchor: null
+    };
+
+    const sel = window.getSelection();
+    let selectedText = '';
+    if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+      state.linkPopoverState.savedRange = sel.getRangeAt(0).cloneRange();
+      selectedText = sel.toString().trim();
+      const existingAnchor = getClosestParent(sel.anchorNode, 'a', editor);
+      if (existingAnchor) {
+        state.linkPopoverState.editingAnchor = existingAnchor;
+      }
+    }
+
+    if (state.linkPopoverState.editingAnchor) {
+      const href = state.linkPopoverState.editingAnchor.getAttribute('href') || '';
+      if (elements.zdLinkUrl) elements.zdLinkUrl.value = href;
+      if (elements.zdLinkText) elements.zdLinkText.value = state.linkPopoverState.editingAnchor.textContent || '';
+    } else {
+      if (elements.zdLinkUrl) elements.zdLinkUrl.value = '';
+      if (elements.zdLinkText) elements.zdLinkText.value = selectedText;
+    }
+
+    if (elements.zdLinkUrl) {
+      elements.zdLinkUrl.classList.remove('input-error');
+    }
+
+    elements.zdLinkPopover.classList.remove('hidden');
+
+    // Position popover right above linkBtn
+    if (linkBtn) {
+      linkBtn.classList.add('is-active');
+      const btnRect = linkBtn.getBoundingClientRect();
+      const popoverWidth = 320;
+      const popoverHeight = 195;
+
+      let top = btnRect.top - popoverHeight - 8;
+      let left = btnRect.right - popoverWidth + 6;
+
+      // Ensure within viewport bounds
+      if (top < 10) {
+        top = btnRect.bottom + 8;
+      }
+      if (left < 10) {
+        left = 10;
+      }
+      if (left + popoverWidth > window.innerWidth - 10) {
+        left = window.innerWidth - popoverWidth - 10;
+      }
+
+      elements.zdLinkPopover.style.top = `${top}px`;
+      elements.zdLinkPopover.style.left = `${left}px`;
+    }
+
+    setTimeout(() => {
+      if (elements.zdLinkUrl) {
+        elements.zdLinkUrl.focus();
+        elements.zdLinkUrl.select();
+      }
+    }, 60);
+  }
+
+  function closeLinkPopover() {
+    if (elements.zdLinkPopover) {
+      elements.zdLinkPopover.classList.add('hidden');
+    }
+    if (state.linkPopoverState && state.linkPopoverState.linkBtn) {
+      state.linkPopoverState.linkBtn.classList.remove('is-active');
+    }
+    if (elements.zdLinkUrl) {
+      elements.zdLinkUrl.value = '';
+      elements.zdLinkUrl.classList.remove('input-error');
+    }
+    if (elements.zdLinkText) {
+      elements.zdLinkText.value = '';
+    }
+    state.linkPopoverState = null;
+  }
+
+  function submitLinkPopover() {
+    if (!state.linkPopoverState || !state.linkPopoverState.editor) {
+      closeLinkPopover();
+      return;
+    }
+
+    const { editor, savedRange, editingAnchor } = state.linkPopoverState;
+    const rawUrl = elements.zdLinkUrl ? elements.zdLinkUrl.value.trim() : '';
+    const rawText = elements.zdLinkText ? elements.zdLinkText.value.trim() : '';
+
+    if (!rawUrl) {
+      if (elements.zdLinkUrl) {
+        elements.zdLinkUrl.classList.add('input-error');
+        elements.zdLinkUrl.focus();
+      }
+      return;
+    }
+    if (elements.zdLinkUrl) {
+      elements.zdLinkUrl.classList.remove('input-error');
+    }
+
+    let cleanUrl = rawUrl;
+    if (!/^(https?:\/\/|mailto:|tel:|\/|#)/i.test(cleanUrl)) {
+      cleanUrl = 'https://' + cleanUrl;
+    }
+
+    const displayText = rawText || rawUrl;
+
+    editor.focus();
+
+    if (editingAnchor && editor.contains(editingAnchor)) {
+      editingAnchor.setAttribute('href', cleanUrl);
+      editingAnchor.textContent = displayText;
+      editingAnchor.setAttribute('target', '_blank');
+      editingAnchor.setAttribute('rel', 'noopener');
+    } else {
+      const a = document.createElement('a');
+      a.setAttribute('href', cleanUrl);
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener');
+      a.textContent = displayText;
+
+      const sel = window.getSelection();
+      if (savedRange) {
+        sel.removeAllRanges();
+        sel.addRange(savedRange);
+        try {
+          savedRange.deleteContents();
+          savedRange.insertNode(a);
+        } catch (e) {
+          editor.appendChild(a);
+        }
+      } else {
+        editor.appendChild(a);
+      }
+
+      // Position cursor right after newly inserted link
+      const newRange = document.createRange();
+      newRange.setStartAfter(a);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    }
+
+    editor.dispatchEvent(new Event('input', { bubbles: true }));
+    closeLinkPopover();
   }
 
   function openMergeModal(customerIdOrTickets) {
@@ -2554,6 +2705,7 @@
   }
 
   function closeMergeModal() {
+    closeLinkPopover();
     if (elements.mergeModal) {
       elements.mergeModal.classList.add('hidden');
     }
@@ -3049,6 +3201,45 @@
       }
     });
 
+    // 12f. Zendesk Native Link Popover Event Handlers
+    if (elements.btnCancelLink) {
+      elements.btnCancelLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        closeLinkPopover();
+      });
+    }
+
+    if (elements.btnAddLink) {
+      elements.btnAddLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        submitLinkPopover();
+      });
+    }
+
+    if (elements.zdLinkUrl) {
+      elements.zdLinkUrl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          submitLinkPopover();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          closeLinkPopover();
+        }
+      });
+    }
+
+    if (elements.zdLinkText) {
+      elements.zdLinkText.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          submitLinkPopover();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          closeLinkPopover();
+        }
+      });
+    }
+
     // 13. Search inside Merge Modal (Auto-searches as you type)
     if (elements.mergeTargetSearch) {
       let searchDebounce = null;
@@ -3066,9 +3257,14 @@
       });
     }
 
-    // 14. Keyboard Escape to close modals
+    // 14. Keyboard Escape to close popovers and modals
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        if (elements.zdLinkPopover && !elements.zdLinkPopover.classList.contains('hidden')) {
+          e.stopPropagation();
+          closeLinkPopover();
+          return;
+        }
         if (elements.mergeModal && !elements.mergeModal.classList.contains('hidden')) {
           closeMergeModal();
         }
@@ -3195,6 +3391,13 @@
       if (!e.target.closest('.zd-privacy-select-wrap')) {
         if (elements.menuPrivacyClosing) elements.menuPrivacyClosing.classList.add('hidden');
         if (elements.menuPrivacyDestination) elements.menuPrivacyDestination.classList.add('hidden');
+      }
+
+      // Click outside link popover to close it
+      if (elements.zdLinkPopover && !elements.zdLinkPopover.classList.contains('hidden')) {
+        if (!elements.zdLinkPopover.contains(e.target) && !e.target.closest('[data-action="link"]')) {
+          closeLinkPopover();
+        }
       }
 
       // Search external ticket button

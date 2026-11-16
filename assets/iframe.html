@@ -660,6 +660,22 @@
     <!-- App Toast Notification -->
     <div id="app-toast" class="app-toast hidden"></div>
 
+    <!-- ZENDESK NATIVE LINK POPOVER DIALOG (Exact Image) -->
+    <div id="zd-link-popover" class="zd-link-popover hidden" role="dialog" aria-labelledby="zd-link-title">
+      <div class="zd-link-field-group">
+        <label id="zd-link-title" class="zd-link-label" for="zd-link-url">Link</label>
+        <input type="text" id="zd-link-url" class="zd-link-input" placeholder="" autocomplete="off" />
+      </div>
+      <div class="zd-link-field-group" style="margin-bottom: 0;">
+        <label class="zd-link-label" for="zd-link-text">Text to display (optional)</label>
+        <input type="text" id="zd-link-text" class="zd-link-input" placeholder="" autocomplete="off" />
+      </div>
+      <div class="zd-link-actions">
+        <button type="button" id="btn-cancel-link" class="zd-link-btn-cancel">Cancel</button>
+        <button type="button" id="btn-add-link" class="zd-link-btn-add">Add</button>
+      </div>
+    </div>
+
   </div>
 
   <script src="main.js"></script>
