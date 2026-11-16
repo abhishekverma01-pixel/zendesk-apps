@@ -1633,161 +1633,170 @@
     }
   }
 
-  function applyToolbarFormatting(textarea, action) {
-    if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const selected = text.substring(start, end);
+  function setComposerText(editorEl, text) {
+    if (!editorEl) return;
+    editorEl.innerText = text || '';
+  }
 
-    let replacement = '';
-    let newCursorPos = start;
-    let newSelectionEnd = end;
+  function getComposerText(editorEl) {
+    if (!editorEl) return '';
+    return editorEl.innerText ? editorEl.innerText.trim() : '';
+  }
+
+  function getComposerHtml(editorEl) {
+    if (!editorEl) return '';
+    return editorEl.innerHTML ? editorEl.innerHTML.trim() : '';
+  }
+
+  function updateComposerActiveToolbar(editor) {
+    if (!editor) return;
+    const toolbar = editor.parentElement ? editor.parentElement.querySelector('.zd-composer-toolbar') : null;
+    if (!toolbar) return;
+
+    try {
+      const isB = document.queryCommandState('bold');
+      const isI = document.queryCommandState('italic');
+      const isU = document.queryCommandState('underline');
+      const isUL = document.queryCommandState('insertUnorderedList');
+      const isOL = document.queryCommandState('insertOrderedList');
+
+      const btnB = toolbar.querySelector('[data-action="bold"]');
+      const btnI = toolbar.querySelector('[data-action="italic"]');
+      const btnU = toolbar.querySelector('[data-action="underline"]');
+      const btnUL = toolbar.querySelector('[data-action="bullet"]');
+      const btnOL = toolbar.querySelector('[data-action="numbered"]');
+
+      if (btnB) btnB.classList.toggle('is-active', !!isB);
+      if (btnI) btnI.classList.toggle('is-active', !!isI);
+      if (btnU) btnU.classList.toggle('is-active', !!isU);
+      if (btnUL) btnUL.classList.toggle('is-active', !!isUL);
+      if (btnOL) btnOL.classList.toggle('is-active', !!isOL);
+    } catch (e) {}
+  }
+
+  function applyToolbarFormatting(editor, action) {
+    if (!editor) return;
+    editor.focus();
 
     switch (action) {
       case 'bold':
-        if (selected) {
-          replacement = `**${selected}**`;
-          newCursorPos = start + 2;
-          newSelectionEnd = end + 2;
-        } else {
-          replacement = '**bold text**';
-          newCursorPos = start + 2;
-          newSelectionEnd = start + 11;
-        }
+        document.execCommand('bold', false, null);
         break;
 
       case 'italic':
-        if (selected) {
-          replacement = `*${selected}*`;
-          newCursorPos = start + 1;
-          newSelectionEnd = end + 1;
-        } else {
-          replacement = '*italic text*';
-          newCursorPos = start + 1;
-          newSelectionEnd = start + 12;
-        }
+        document.execCommand('italic', false, null);
         break;
 
       case 'underline':
-        if (selected) {
-          replacement = `<u>${selected}</u>`;
-          newCursorPos = start + 3;
-          newSelectionEnd = end + 3;
-        } else {
-          replacement = '<u>underlined text</u>';
-          newCursorPos = start + 3;
-          newSelectionEnd = start + 18;
-        }
+        document.execCommand('underline', false, null);
         break;
 
       case 'bullet':
-        if (selected) {
-          const lines = selected.split('\n');
-          replacement = lines.map(line => line.startsWith('• ') ? line.substring(2) : `• ${line}`).join('\n');
-          newCursorPos = start;
-          newSelectionEnd = start + replacement.length;
-        } else {
-          replacement = '• ';
-          newCursorPos = start + 2;
-          newSelectionEnd = newCursorPos;
-        }
+        document.execCommand('insertUnorderedList', false, null);
         break;
 
       case 'numbered':
-        if (selected) {
-          const lines = selected.split('\n');
-          replacement = lines.map((line, idx) => {
-            const stripped = line.replace(/^\d+\.\s*/, '');
-            return `${idx + 1}. ${stripped}`;
-          }).join('\n');
-          newCursorPos = start;
-          newSelectionEnd = start + replacement.length;
-        } else {
-          replacement = '1. ';
-          newCursorPos = start + 3;
-          newSelectionEnd = newCursorPos;
-        }
+        document.execCommand('insertOrderedList', false, null);
         break;
 
       case 'indent':
-        if (selected) {
-          const lines = selected.split('\n');
-          replacement = lines.map(line => '  ' + line).join('\n');
-          newCursorPos = start;
-          newSelectionEnd = start + replacement.length;
-        } else {
-          replacement = '  ';
-          newCursorPos = start + 2;
-          newSelectionEnd = newCursorPos;
-        }
+        document.execCommand('indent', false, null);
         break;
 
       case 'outdent':
-        if (selected) {
-          const lines = selected.split('\n');
-          replacement = lines.map(line => line.replace(/^(  |\t)/, '')).join('\n');
-          newCursorPos = start;
-          newSelectionEnd = start + replacement.length;
-        } else {
-          return;
-        }
+        document.execCommand('outdent', false, null);
         break;
 
-      case 'quote':
-        if (selected) {
-          const lines = selected.split('\n');
-          replacement = lines.map(line => line.startsWith('> ') ? line.substring(2) : `> ${line}`).join('\n');
-          newCursorPos = start;
-          newSelectionEnd = start + replacement.length;
+      case 'quote': {
+        const sel = window.getSelection();
+        if (sel && sel.anchorNode) {
+          const parentBq = sel.anchorNode.parentElement ? sel.anchorNode.parentElement.closest('blockquote') : null;
+          if (parentBq) {
+            document.execCommand('formatBlock', false, '<div>');
+          } else {
+            document.execCommand('formatBlock', false, '<blockquote>');
+          }
         } else {
-          replacement = '> ';
-          newCursorPos = start + 2;
-          newSelectionEnd = newCursorPos;
+          document.execCommand('formatBlock', false, '<blockquote>');
         }
         break;
+      }
 
-      case 'code':
-        if (selected) {
-          replacement = `\`${selected}\``;
-          newCursorPos = start + 1;
-          newSelectionEnd = end + 1;
-        } else {
-          replacement = '`code`';
-          newCursorPos = start + 1;
-          newSelectionEnd = start + 5;
+      case 'code': {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          const selectedText = sel.toString();
+          const parentCode = sel.anchorNode && sel.anchorNode.parentElement ? sel.anchorNode.parentElement.closest('code') : null;
+          if (parentCode) {
+            const textNode = document.createTextNode(parentCode.textContent);
+            parentCode.parentNode.replaceChild(textNode, parentCode);
+          } else if (selectedText) {
+            const codeEl = document.createElement('code');
+            try {
+              range.surroundContents(codeEl);
+            } catch (err) {
+              codeEl.textContent = selectedText;
+              range.deleteContents();
+              range.insertNode(codeEl);
+            }
+          } else {
+            const codeEl = document.createElement('code');
+            codeEl.textContent = 'code';
+            range.insertNode(codeEl);
+            sel.selectAllChildren(codeEl);
+          }
         }
         break;
+      }
 
-      case 'codeblock':
-        if (selected) {
-          replacement = `\n\`\`\`\n${selected}\n\`\`\`\n`;
-          newCursorPos = start + 5;
-          newSelectionEnd = start + 5 + selected.length;
-        } else {
-          replacement = '\n```\ncode block\n```\n';
-          newCursorPos = start + 5;
-          newSelectionEnd = start + 15;
+      case 'codeblock': {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          const selectedText = sel.toString() || 'code block';
+          const preEl = document.createElement('pre');
+          const codeEl = document.createElement('code');
+          codeEl.textContent = selectedText;
+          preEl.appendChild(codeEl);
+          range.deleteContents();
+          range.insertNode(preEl);
+          sel.selectAllChildren(codeEl);
         }
         break;
+      }
 
-      case 'link':
-        const linkUrl = prompt('Enter link URL (e.g. https://example.com):', 'https://');
-        if (!linkUrl) return;
-        const linkText = selected || 'link text';
-        replacement = `[${linkText}](${linkUrl})`;
-        newCursorPos = start + 1;
-        newSelectionEnd = start + 1 + linkText.length;
+      case 'link': {
+        const sel = window.getSelection();
+        const selectedText = sel ? sel.toString().trim() : '';
+        const url = prompt('Enter link URL (e.g. https://example.com):', 'https://');
+        if (url && url.trim()) {
+          const cleanUrl = url.trim();
+          if (selectedText) {
+            document.execCommand('createLink', false, cleanUrl);
+          } else {
+            const linkText = prompt('Enter link text:', cleanUrl) || cleanUrl;
+            const a = document.createElement('a');
+            a.href = cleanUrl;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.textContent = linkText;
+            if (sel && sel.rangeCount > 0) {
+              const range = sel.getRangeAt(0);
+              range.insertNode(a);
+            } else {
+              editor.appendChild(a);
+            }
+          }
+        }
         break;
+      }
 
       default:
         return;
     }
 
-    textarea.value = text.substring(0, start) + replacement + text.substring(end);
-    textarea.focus();
-    textarea.setSelectionRange(newCursorPos, newSelectionEnd);
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    updateComposerActiveToolbar(editor);
   }
 
   function openMergeModal(customerIdOrTickets) {
@@ -1868,8 +1877,8 @@
     setComposerPrivacy('closing', false);
     setComposerPrivacy('destination', false);
     if (elements.mergeDestinationBadge) elements.mergeDestinationBadge.textContent = '#---';
-    if (elements.mergeTargetComment) elements.mergeTargetComment.value = '';
-    if (elements.mergeSourceComment) elements.mergeSourceComment.value = '';
+    setComposerText(elements.mergeTargetComment, '');
+    setComposerText(elements.mergeSourceComment, '');
     if (elements.menuPrivacyClosing) elements.menuPrivacyClosing.classList.add('hidden');
     if (elements.menuPrivacyDestination) elements.menuPrivacyDestination.classList.add('hidden');
 
@@ -2087,12 +2096,8 @@
       defaultDestComment = 'This ticket now includes merged content.';
     }
 
-    if (elements.mergeSourceComment) {
-      elements.mergeSourceComment.value = defaultClosingComment;
-    }
-    if (elements.mergeTargetComment) {
-      elements.mergeTargetComment.value = defaultDestComment;
-    }
+    setComposerText(elements.mergeSourceComment, defaultClosingComment);
+    setComposerText(elements.mergeTargetComment, defaultDestComment);
 
     // Enable Confirm Button - NOTE: warning is IGNORABLE and DOES NOT block or disable button!
     if (elements.btnConfirmMerge) {
@@ -2101,32 +2106,54 @@
     hideMergeAlert();
   }
 
+  let autoSearchDebounce = null;
   function handleMergeTargetSearch(query) {
     state.mergeState.searchQuery = (query || '').toLowerCase().trim();
     const q = state.mergeState.searchQuery;
 
-    let filtered = state.mergeState.allCustomerTickets;
-    if (q) {
-      filtered = state.mergeState.allCustomerTickets.filter(t => {
-        const idMatch = String(t.id).includes(q);
-        const subMatch = (t.subject || '').toLowerCase().includes(q);
-        const reqNameMatch = t.requester && (t.requester.name || '').toLowerCase().includes(q);
-        const reqEmailMatch = t.requester && (t.requester.email || '').toLowerCase().includes(q);
-        const custNameMatch = state.mergeState.customer && (state.mergeState.customer.name || '').toLowerCase().includes(q);
-        const custEmailMatch = state.mergeState.customer && (state.mergeState.customer.email || '').toLowerCase().includes(q);
-        const orgMatch = (t.organization && t.organization.name && t.organization.name.toLowerCase().includes(q)) || (t.organization_id && String(t.organization_id).includes(q));
-        return idMatch || subMatch || reqNameMatch || reqEmailMatch || custNameMatch || custEmailMatch || orgMatch;
-      });
+    clearTimeout(autoSearchDebounce);
+
+    if (!q) {
+      const currentTargetId = state.mergeState.targetTicket ? state.mergeState.targetTicket.id : null;
+      renderMergeCandidates(state.mergeState.allCustomerTickets, currentTargetId);
+      hideMergeAlert();
+      return;
     }
+
+    let filtered = state.mergeState.allCustomerTickets.filter(t => {
+      const idMatch = String(t.id).includes(q);
+      const subMatch = (t.subject || '').toLowerCase().includes(q);
+      const reqNameMatch = t.requester && (t.requester.name || '').toLowerCase().includes(q);
+      const reqEmailMatch = t.requester && (t.requester.email || '').toLowerCase().includes(q);
+      const custNameMatch = state.mergeState.customer && (state.mergeState.customer.name || '').toLowerCase().includes(q);
+      const custEmailMatch = state.mergeState.customer && (state.mergeState.customer.email || '').toLowerCase().includes(q);
+      const orgMatch = (t.organization && t.organization.name && t.organization.name.toLowerCase().includes(q)) || (t.organization_id && String(t.organization_id).includes(q));
+      return idMatch || subMatch || reqNameMatch || reqEmailMatch || custNameMatch || custEmailMatch || orgMatch;
+    });
 
     const currentTargetId = state.mergeState.targetTicket ? state.mergeState.targetTicket.id : null;
     renderMergeCandidates(filtered, currentTargetId);
+
+    // If an exact ticket ID match is already in filtered list, auto-select it immediately!
+    const exactLocal = filtered.find(t => String(t.id) === q);
+    if (exactLocal) {
+      selectTargetTicket(exactLocal);
+      return;
+    }
+
+    // Automatically trigger Zendesk ticket search without needing manual enter or search click!
+    const isNum = /^\d+$/.test(q);
+    const delay = isNum ? 180 : 350;
+
+    autoSearchDebounce = setTimeout(() => {
+      searchZendeskTickets(q, true);
+    }, delay);
   }
 
-  function searchZendeskTickets(query) {
+  function searchZendeskTickets(query, isAuto = false) {
     const q = (query || (elements.mergeTargetSearch ? elements.mergeTargetSearch.value : '') || '').trim();
     if (!q) {
-      showMergeAlert('Please type a ticket number, requester name, or email to search.', 'error');
+      if (!isAuto) showMergeAlert('Please type a ticket number, requester name, or email to search.', 'error');
       return;
     }
 
@@ -2154,7 +2181,9 @@
       return;
     }
 
-    showMergeAlert(`Searching Zendesk for "${q}"...`, 'info');
+    if (!isAuto) {
+      showMergeAlert(`Searching Zendesk for "${q}"...`, 'info');
+    }
 
     // If pure number, try direct ticket ID lookup first
     if (/^\d+$/.test(q)) {
@@ -2172,17 +2201,17 @@
           selectTargetTicket(t);
           showToast(`Found Ticket #${t.id}`);
         } else {
-          executeZendeskTextSearch(q);
+          executeZendeskTextSearch(q, isAuto);
         }
       }).catch(() => {
-        executeZendeskTextSearch(q);
+        executeZendeskTextSearch(q, isAuto);
       });
     } else {
-      executeZendeskTextSearch(q);
+      executeZendeskTextSearch(q, isAuto);
     }
   }
 
-  function executeZendeskTextSearch(q) {
+  function executeZendeskTextSearch(q, isAuto = false) {
     let zdSearchQuery = `type:ticket ${q}`;
     if (q.includes('@')) {
       zdSearchQuery = `type:ticket requester:${q}`;
@@ -2200,14 +2229,20 @@
             state.mergeState.allCustomerTickets.push(t);
           }
         });
-        renderMergeCandidates(results);
+        const currentTargetId = state.mergeState.targetTicket ? state.mergeState.targetTicket.id : (results.length === 1 ? results[0].id : null);
+        renderMergeCandidates(results, currentTargetId);
+        if (results.length === 1) {
+          selectTargetTicket(results[0]);
+        }
         showToast(`Found ${results.length} ticket(s) matching "${q}"`);
-      } else {
+      } else if (!isAuto) {
         showMergeAlert(`No tickets found in Zendesk for "${q}".`, 'error');
       }
     }).catch(err => {
       console.warn('Search query error:', err);
-      showMergeAlert(`Search error for "${q}". Please check your query.`, 'error');
+      if (!isAuto) {
+        showMergeAlert(`Search error for "${q}". Please check your query.`, 'error');
+      }
     });
   }
 
@@ -2247,8 +2282,16 @@
       defaultTargetComment = 'This ticket now includes merged content.';
     }
 
-    const targetComment = (elements.mergeTargetComment && elements.mergeTargetComment.value.trim()) || defaultTargetComment;
-    const sourceComment = (elements.mergeSourceComment && elements.mergeSourceComment.value.trim()) || defaultSourceComment;
+    const targetText = getComposerText(elements.mergeTargetComment);
+    const targetHtml = getComposerHtml(elements.mergeTargetComment);
+    const sourceText = getComposerText(elements.mergeSourceComment);
+    const sourceHtml = getComposerHtml(elements.mergeSourceComment);
+
+    const hasTargetHtml = /<(b|i|u|strong|em|ul|ol|li|blockquote|code|pre|a)\b/i.test(targetHtml);
+    const hasSourceHtml = /<(b|i|u|strong|em|ul|ol|li|blockquote|code|pre|a)\b/i.test(sourceHtml);
+
+    const targetComment = targetText ? (hasTargetHtml ? targetHtml : targetText) : defaultTargetComment;
+    const sourceComment = sourceText ? (hasSourceHtml ? sourceHtml : sourceText) : defaultSourceComment;
 
     const payload = {
       ids: closingIds,
@@ -2763,7 +2806,24 @@
       });
     }
 
-    // 13. Search inside Merge Modal
+    // 12c. Prevent editor losing focus/selection when clicking toolbar buttons
+    document.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.zd-tool-btn')) {
+        e.preventDefault();
+      }
+    });
+
+    // 12d. Update active state of toolbar buttons (Bold, Italic, Underline, Lists) on selection change
+    ['keyup', 'mouseup', 'focus', 'input'].forEach(evtType => {
+      document.addEventListener(evtType, (e) => {
+        const editor = e.target.closest('.zd-composer-editor');
+        if (editor) {
+          updateComposerActiveToolbar(editor);
+        }
+      });
+    });
+
+    // 13. Search inside Merge Modal (Auto-searches as you type)
     if (elements.mergeTargetSearch) {
       let searchDebounce = null;
       elements.mergeTargetSearch.addEventListener('input', (e) => {
@@ -2892,15 +2952,15 @@
         return;
       }
 
-      // Formatting Toolbar Button Click
+      // Formatting Toolbar Button Click (WYSIWYG Zendesk Rich Text)
       const toolBtn = e.target.closest('.zd-tool-btn');
       if (toolBtn) {
         const action = toolBtn.getAttribute('data-action');
         const toolbar = toolBtn.closest('.zd-composer-toolbar');
-        const textareaId = toolbar ? toolbar.getAttribute('data-textarea') : null;
-        const textarea = textareaId ? document.getElementById(textareaId) : null;
-        if (textarea && action) {
-          applyToolbarFormatting(textarea, action);
+        const editorId = toolbar ? (toolbar.getAttribute('data-editor') || toolbar.getAttribute('data-textarea')) : null;
+        const editor = editorId ? document.getElementById(editorId) : null;
+        if (editor && action) {
+          applyToolbarFormatting(editor, action);
         }
         return;
       }
