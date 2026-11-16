@@ -44,8 +44,10 @@
     currentPage: 1,
     selectedViewTicketIds: new Set(),
 
-    // Zendesk Native Link Popover
+    // Zendesk Native Link Popover & Tooltip Pill
     linkPopoverState: null,
+    activeTooltipLink: null,
+    activeTooltipEditor: null,
 
     // Duplicate Customers State & Pagination (10 Customer Groups per page)
     duplicateRequesters: [],
@@ -178,6 +180,13 @@
     zdLinkText: document.getElementById('zd-link-text'),
     btnCancelLink: document.getElementById('btn-cancel-link'),
     btnAddLink: document.getElementById('btn-add-link'),
+
+    // Zendesk Native Link Action Tooltip Pill (Exact Image 2)
+    zdLinkTooltip: document.getElementById('zd-link-tooltip'),
+    zdLinkTooltipUrl: document.getElementById('zd-link-tooltip-url'),
+    btnLinkActionOpen: document.getElementById('btn-link-action-open'),
+    btnLinkActionEdit: document.getElementById('btn-link-action-edit'),
+    btnLinkActionUnlink: document.getElementById('btn-link-action-unlink'),
 
     // Bulk Delete Modal Elements
     deleteModal: document.getElementById('delete-modal'),
@@ -1989,11 +1998,11 @@
     updateComposerActiveToolbar(editor);
   }
 
-  function openLinkPopover(editor, linkBtn) {
+  function openLinkPopover(editor, linkBtn, customAnchor) {
     if (!elements.zdLinkPopover) return;
 
     // If already open for this editor & button, toggle close
-    if (!elements.zdLinkPopover.classList.contains('hidden') && state.linkPopoverState && state.linkPopoverState.editor === editor) {
+    if (!customAnchor && !elements.zdLinkPopover.classList.contains('hidden') && state.linkPopoverState && state.linkPopoverState.editor === editor) {
       closeLinkPopover();
       return;
     }
@@ -2002,12 +2011,15 @@
       editor: editor,
       linkBtn: linkBtn,
       savedRange: null,
-      editingAnchor: null
+      editingAnchor: customAnchor || null
     };
 
     const sel = window.getSelection();
     let selectedText = '';
-    if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+    if (customAnchor) {
+      state.linkPopoverState.editingAnchor = customAnchor;
+      selectedText = customAnchor.textContent || '';
+    } else if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
       state.linkPopoverState.savedRange = sel.getRangeAt(0).cloneRange();
       selectedText = sel.toString().trim();
       const existingAnchor = getClosestParent(sel.anchorNode, 'a', editor);
@@ -2029,12 +2041,14 @@
       elements.zdLinkUrl.classList.remove('input-error');
     }
 
+    hideLinkTooltip();
     elements.zdLinkPopover.classList.remove('hidden');
 
-    // Position popover right above linkBtn
-    if (linkBtn) {
-      linkBtn.classList.add('is-active');
-      const btnRect = linkBtn.getBoundingClientRect();
+    // Position popover right above linkBtn (or customAnchor if editing from tooltip)
+    const anchorTarget = customAnchor || linkBtn;
+    if (anchorTarget) {
+      if (linkBtn) linkBtn.classList.add('is-active');
+      const btnRect = anchorTarget.getBoundingClientRect();
       const popoverWidth = 320;
       const popoverHeight = 195;
 
@@ -2079,6 +2093,161 @@
       elements.zdLinkText.value = '';
     }
     state.linkPopoverState = null;
+  }
+
+  let linkTooltipHideTimeout = null;
+
+  function showLinkTooltip(anchorEl, editorEl) {
+    if (!anchorEl || !editorEl || !elements.zdLinkTooltip) return;
+    clearTimeout(linkTooltipHideTimeout);
+
+    state.activeTooltipLink = anchorEl;
+    state.activeTooltipEditor = editorEl;
+
+    const href = anchorEl.getAttribute('href') || '#';
+    if (elements.zdLinkTooltipUrl) {
+      elements.zdLinkTooltipUrl.textContent = href;
+      elements.zdLinkTooltipUrl.href = href;
+    }
+
+    elements.zdLinkTooltip.classList.remove('hidden');
+
+    const anchorRect = anchorEl.getBoundingClientRect();
+    const tooltipRect = elements.zdLinkTooltip.getBoundingClientRect();
+    const tooltipHeight = tooltipRect.height || 36;
+    const tooltipWidth = tooltipRect.width || 280;
+
+    let top = anchorRect.top - tooltipHeight - 6;
+    let left = anchorRect.left;
+
+    // Bounds checking inside viewport
+    if (top < 10) {
+      top = anchorRect.bottom + 6;
+    }
+    if (left + tooltipWidth > window.innerWidth - 10) {
+      left = window.innerWidth - tooltipWidth - 10;
+    }
+    if (left < 10) left = 10;
+
+    elements.zdLinkTooltip.style.top = `${top}px`;
+    elements.zdLinkTooltip.style.left = `${left}px`;
+  }
+
+  function hideLinkTooltip() {
+    clearTimeout(linkTooltipHideTimeout);
+    if (elements.zdLinkTooltip) {
+      elements.zdLinkTooltip.classList.add('hidden');
+    }
+    state.activeTooltipLink = null;
+    state.activeTooltipEditor = null;
+  }
+
+  function scheduleHideLinkTooltip() {
+    clearTimeout(linkTooltipHideTimeout);
+    linkTooltipHideTimeout = setTimeout(() => {
+      hideLinkTooltip();
+    }, 280);
+  }
+
+  function cancelHideLinkTooltip() {
+    clearTimeout(linkTooltipHideTimeout);
+  }
+
+  // Convert rich text composer HTML into Zendesk-compliant Markdown
+  // This ensures links like [closed](url) render as real clickable hyperlinks in Zendesk ticket view!
+  function convertHtmlToZendeskMarkdown(htmlOrNode) {
+    if (!htmlOrNode) return '';
+    let container;
+    if (typeof htmlOrNode === 'string') {
+      container = document.createElement('div');
+      container.innerHTML = htmlOrNode;
+    } else if (htmlOrNode.cloneNode) {
+      container = htmlOrNode.cloneNode(true);
+    } else {
+      return String(htmlOrNode);
+    }
+
+    function processNode(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.nodeValue;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return '';
+      }
+
+      const tag = node.tagName.toLowerCase();
+      let childrenText = '';
+      for (const child of node.childNodes) {
+        childrenText += processNode(child);
+      }
+
+      switch (tag) {
+        case 'a': {
+          const href = node.getAttribute('href') || '';
+          const text = childrenText.trim() || href;
+          if (href) {
+            return `[${text}](${href})`;
+          }
+          return text;
+        }
+        case 'b':
+        case 'strong': {
+          const trimmed = childrenText.trim();
+          if (!trimmed) return '';
+          return `**${trimmed}**`;
+        }
+        case 'i':
+        case 'em': {
+          const trimmed = childrenText.trim();
+          if (!trimmed) return '';
+          return `*${trimmed}*`;
+        }
+        case 'u': {
+          const trimmed = childrenText.trim();
+          if (!trimmed) return '';
+          return `<u>${trimmed}</u>`;
+        }
+        case 'code': {
+          if (node.parentElement && node.parentElement.tagName.toLowerCase() === 'pre') {
+            return childrenText;
+          }
+          const trimmed = childrenText.trim();
+          if (!trimmed) return '';
+          return `\`${trimmed}\``;
+        }
+        case 'pre': {
+          const codeText = node.innerText || childrenText;
+          return `\n\`\`\`\n${codeText.trim()}\n\`\`\`\n`;
+        }
+        case 'blockquote': {
+          const lines = childrenText.trim().split('\n');
+          return '\n' + lines.map(l => `> ${l}`).join('\n') + '\n';
+        }
+        case 'li': {
+          const isOrdered = node.parentElement && node.parentElement.tagName.toLowerCase() === 'ol';
+          const index = Array.prototype.indexOf.call(node.parentElement ? node.parentElement.children : [], node) + 1;
+          const prefix = isOrdered ? `${index}. ` : '- ';
+          return `\n${prefix}${childrenText.trim()}`;
+        }
+        case 'ul':
+        case 'ol': {
+          return `\n${childrenText.trim()}\n`;
+        }
+        case 'br': {
+          return '\n';
+        }
+        case 'p':
+        case 'div': {
+          return childrenText ? `\n${childrenText}` : '\n';
+        }
+        default:
+          return childrenText;
+      }
+    }
+
+    let md = processNode(container);
+    md = md.replace(/\n{3,}/g, '\n\n').trim();
+    return md;
   }
 
   function submitLinkPopover() {
@@ -2640,8 +2809,9 @@
     const hasTargetHtml = /<(b|i|u|strong|em|ul|ol|li|blockquote|code|pre|a)\b/i.test(targetHtml);
     const hasSourceHtml = /<(b|i|u|strong|em|ul|ol|li|blockquote|code|pre|a)\b/i.test(sourceHtml);
 
-    const targetComment = targetText ? (hasTargetHtml ? targetHtml : targetText) : defaultTargetComment;
-    const sourceComment = sourceText ? (hasSourceHtml ? sourceHtml : sourceText) : defaultSourceComment;
+    // Convert rich HTML to Zendesk-compliant Markdown so links like [closed](url) and formatting render natively in Zendesk ticket view!
+    const targetComment = targetText ? (hasTargetHtml ? convertHtmlToZendeskMarkdown(targetHtml) : targetText) : defaultTargetComment;
+    const sourceComment = sourceText ? (hasSourceHtml ? convertHtmlToZendeskMarkdown(sourceHtml) : sourceText) : defaultSourceComment;
 
     const payload = {
       ids: closingIds,
@@ -2706,6 +2876,7 @@
 
   function closeMergeModal() {
     closeLinkPopover();
+    hideLinkTooltip();
     if (elements.mergeModal) {
       elements.mergeModal.classList.add('hidden');
     }
@@ -3240,6 +3411,73 @@
       });
     }
 
+    // 12g. Zendesk Native Link Tooltip Actions (Open, Edit, Unlink - Exact Image 2)
+    if (elements.btnLinkActionOpen) {
+      elements.btnLinkActionOpen.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (state.activeTooltipLink) {
+          const url = state.activeTooltipLink.getAttribute('href');
+          if (url) window.open(url, '_blank', 'noopener,noreferrer');
+        }
+      });
+    }
+
+    if (elements.btnLinkActionEdit) {
+      elements.btnLinkActionEdit.addEventListener('click', (e) => {
+        e.preventDefault();
+        const anchor = state.activeTooltipLink;
+        const editor = state.activeTooltipEditor;
+        hideLinkTooltip();
+        if (anchor && editor) {
+          const toolbar = editor.parentElement ? editor.parentElement.querySelector('.zd-composer-toolbar') : null;
+          const linkBtn = toolbar ? toolbar.querySelector('[data-action="link"]') : null;
+          openLinkPopover(editor, linkBtn, anchor);
+        }
+      });
+    }
+
+    if (elements.btnLinkActionUnlink) {
+      elements.btnLinkActionUnlink.addEventListener('click', (e) => {
+        e.preventDefault();
+        const anchor = state.activeTooltipLink;
+        const editor = state.activeTooltipEditor;
+        if (anchor && anchor.parentNode) {
+          const textNode = document.createTextNode(anchor.textContent);
+          anchor.parentNode.replaceChild(textNode, anchor);
+          hideLinkTooltip();
+          if (editor) {
+            editor.focus();
+            updateComposerActiveToolbar(editor);
+            editor.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        }
+      });
+    }
+
+    if (elements.zdLinkTooltip) {
+      elements.zdLinkTooltip.addEventListener('mouseenter', cancelHideLinkTooltip);
+      elements.zdLinkTooltip.addEventListener('mouseleave', scheduleHideLinkTooltip);
+    }
+
+    // Hover & focus detection for links inside rich text editors
+    document.addEventListener('mouseover', (e) => {
+      const anchor = e.target.closest ? e.target.closest('.zd-composer-editor a') : null;
+      if (anchor) {
+        const editor = anchor.closest('.zd-composer-editor');
+        if (editor) {
+          cancelHideLinkTooltip();
+          showLinkTooltip(anchor, editor);
+        }
+      }
+    });
+
+    document.addEventListener('mouseout', (e) => {
+      const anchor = e.target.closest ? e.target.closest('.zd-composer-editor a') : null;
+      if (anchor) {
+        scheduleHideLinkTooltip();
+      }
+    });
+
     // 13. Search inside Merge Modal (Auto-searches as you type)
     if (elements.mergeTargetSearch) {
       let searchDebounce = null;
@@ -3260,6 +3498,11 @@
     // 14. Keyboard Escape to close popovers and modals
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        if (elements.zdLinkTooltip && !elements.zdLinkTooltip.classList.contains('hidden')) {
+          e.stopPropagation();
+          hideLinkTooltip();
+          return;
+        }
         if (elements.zdLinkPopover && !elements.zdLinkPopover.classList.contains('hidden')) {
           e.stopPropagation();
           closeLinkPopover();
@@ -3397,6 +3640,22 @@
       if (elements.zdLinkPopover && !elements.zdLinkPopover.classList.contains('hidden')) {
         if (!elements.zdLinkPopover.contains(e.target) && !e.target.closest('[data-action="link"]')) {
           closeLinkPopover();
+        }
+      }
+
+      // Click on link in composer to show Link Action Tooltip Pill (Exact Image 2)
+      const clickedAnchor = e.target.closest ? e.target.closest('.zd-composer-editor a') : null;
+      if (clickedAnchor) {
+        e.preventDefault();
+        const editor = clickedAnchor.closest('.zd-composer-editor');
+        if (editor) {
+          cancelHideLinkTooltip();
+          showLinkTooltip(clickedAnchor, editor);
+        }
+      } else if (elements.zdLinkTooltip && !elements.zdLinkTooltip.classList.contains('hidden')) {
+        // Click outside tooltip to hide it
+        if (!elements.zdLinkTooltip.contains(e.target)) {
+          hideLinkTooltip();
         }
       }
 

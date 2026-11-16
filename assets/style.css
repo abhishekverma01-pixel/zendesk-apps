@@ -2470,6 +2470,87 @@ html, body {
   background: #0f3554;
 }
 
+/* ==========================================
+   ZENDESK NATIVE LINK ACTION TOOLTIP PILL
+   ========================================== */
+.zd-link-tooltip {
+  position: fixed;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+  border: 1px solid #d8dcde;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), 0 0 1px rgba(0, 0, 0, 0.1);
+  padding: 5px 8px 5px 12px;
+  z-index: 100000;
+  box-sizing: border-box;
+  animation: zdLinkTooltipFade 0.12s ease-out;
+  font-family: var(--zd-font-sans);
+}
+
+@keyframes zdLinkTooltipFade {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.zd-link-tooltip-url {
+  color: #1f73b7;
+  font-size: 13px;
+  text-decoration: none;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+  cursor: pointer;
+  line-height: 24px;
+}
+
+.zd-link-tooltip-url:hover {
+  text-decoration: underline;
+}
+
+.zd-link-tooltip-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.zd-link-action-btn {
+  background: transparent;
+  border: none;
+  color: #52606d;
+  width: 26px;
+  height: 26px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.1s, color 0.1s;
+}
+
+.zd-link-action-btn:hover {
+  background: #edf0f2;
+  color: #1f73b7;
+}
+
+.zd-link-action-btn:active {
+  background: #e1f0fa;
+}
+
+#btn-link-action-unlink:hover {
+  color: #cc3340;
+}
+
 .hidden {
   display: none !important;
 }
