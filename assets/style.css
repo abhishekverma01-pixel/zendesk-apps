@@ -2013,31 +2013,51 @@ html, body {
   border-radius: 0 4px 4px 0;
 }
 
-.zd-composer-editor code {
-  background: rgba(0, 0, 0, 0.06);
-  padding: 2px 5px;
+.zd-composer-editor code:not(pre code),
+.zd-composer-editor .zd-inline-code {
+  background: #edf0f2;
+  border: 1px solid #d8dcde;
+  padding: 1px 5px;
   border-radius: 3px;
-  font-family: var(--zd-font-mono);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
   font-size: 12px;
-  color: #c7254e;
+  color: #2f3941;
 }
 
-.zd-composer-editor pre {
+.zd-composer-editor pre,
+.zd-composer-editor .zd-code-block {
   background: #f8f9fa;
   border: 1px solid #d8dcde;
   border-radius: 4px;
-  padding: 8px 10px;
+  padding: 10px 14px;
   margin: 6px 0;
-  font-family: var(--zd-font-mono);
-  font-size: 12px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #2f3941;
   overflow-x: auto;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.zd-composer-editor pre code {
-  background: transparent;
-  padding: 0;
-  color: #2f3941;
+.zd-composer-editor pre code,
+.zd-composer-editor .zd-code-block code {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  color: inherit !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  white-space: inherit !important;
+}
+
+.zd-composer-editor pre pre {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
 }
 
 .zd-composer-editor a {

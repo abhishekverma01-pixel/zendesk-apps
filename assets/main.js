@@ -1648,6 +1648,33 @@
     return editorEl.innerHTML ? editorEl.innerHTML.trim() : '';
   }
 
+  function getClosestParent(node, tagName, rootBoundary) {
+    if (!node) return null;
+    let curr = (node.nodeType === Node.ELEMENT_NODE) ? node : node.parentElement;
+    const targetTag = tagName.toUpperCase();
+    while (curr && curr !== rootBoundary && curr !== document.body) {
+      if (curr.tagName === targetTag) {
+        return curr;
+      }
+      curr = curr.parentElement;
+    }
+    return null;
+  }
+
+  function sanitizeEditorPreElements(editor) {
+    if (!editor) return;
+    const nestedPres = editor.querySelectorAll('pre pre');
+    nestedPres.forEach(nested => {
+      const parent = nested.parentElement;
+      if (parent) {
+        while (nested.firstChild) {
+          parent.insertBefore(nested.firstChild, nested);
+        }
+        parent.removeChild(nested);
+      }
+    });
+  }
+
   function updateComposerActiveToolbar(editor) {
     if (!editor) return;
     const toolbar = editor.parentElement ? editor.parentElement.querySelector('.zd-composer-toolbar') : null;
@@ -1660,17 +1687,48 @@
       const isUL = document.queryCommandState('insertUnorderedList');
       const isOL = document.queryCommandState('insertOrderedList');
 
+      let isQuote = false;
+      let isCode = false;
+      let isCodeBlock = false;
+
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+        const range = sel.getRangeAt(0);
+        const preNode = getClosestParent(range.commonAncestorContainer, 'pre', editor)
+                     || getClosestParent(sel.anchorNode, 'pre', editor);
+        if (preNode) {
+          isCodeBlock = true;
+        } else {
+          const codeNode = getClosestParent(range.commonAncestorContainer, 'code', editor)
+                        || getClosestParent(sel.anchorNode, 'code', editor);
+          if (codeNode && !getClosestParent(codeNode, 'pre', editor)) {
+            isCode = true;
+          }
+        }
+        const bqNode = getClosestParent(range.commonAncestorContainer, 'blockquote', editor)
+                    || getClosestParent(sel.anchorNode, 'blockquote', editor);
+        if (bqNode) {
+          isQuote = true;
+        }
+      }
+
       const btnB = toolbar.querySelector('[data-action="bold"]');
       const btnI = toolbar.querySelector('[data-action="italic"]');
       const btnU = toolbar.querySelector('[data-action="underline"]');
       const btnUL = toolbar.querySelector('[data-action="bullet"]');
       const btnOL = toolbar.querySelector('[data-action="numbered"]');
+      const btnQuote = toolbar.querySelector('[data-action="quote"]');
+      const btnCode = toolbar.querySelector('[data-action="code"]');
+      const btnCodeBlock = toolbar.querySelector('[data-action="codeblock"]');
 
       if (btnB) btnB.classList.toggle('is-active', !!isB);
       if (btnI) btnI.classList.toggle('is-active', !!isI);
       if (btnU) btnU.classList.toggle('is-active', !!isU);
       if (btnUL) btnUL.classList.toggle('is-active', !!isUL);
       if (btnOL) btnOL.classList.toggle('is-active', !!isOL);
+      if (btnQuote) btnQuote.classList.toggle('is-active', !!isQuote);
+      if (btnCode) btnCode.classList.toggle('is-active', !!isCode);
+      if (btnCodeBlock) btnCodeBlock.classList.toggle('is-active', !!isCodeBlock);
     } catch (e) {}
   }
 
@@ -1709,12 +1767,18 @@
 
       case 'quote': {
         const sel = window.getSelection();
-        if (sel && sel.anchorNode) {
-          const parentBq = sel.anchorNode.parentElement ? sel.anchorNode.parentElement.closest('blockquote') : null;
-          if (parentBq) {
-            document.execCommand('formatBlock', false, '<div>');
-          } else {
-            document.execCommand('formatBlock', false, '<blockquote>');
+        const bqNode = (sel && sel.anchorNode) ? getClosestParent(sel.anchorNode, 'blockquote', editor) : null;
+        if (bqNode) {
+          // Toggle off quote: unwrap and restore normal paragraph/div
+          const div = document.createElement('div');
+          div.innerHTML = bqNode.innerHTML;
+          bqNode.parentNode.replaceChild(div, bqNode);
+          if (sel) {
+            const range = document.createRange();
+            range.selectNodeContents(div);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
           }
         } else {
           document.execCommand('formatBlock', false, '<blockquote>');
@@ -1724,27 +1788,81 @@
 
       case 'code': {
         const sel = window.getSelection();
-        if (sel && sel.rangeCount > 0) {
-          const range = sel.getRangeAt(0);
+        if (!sel || sel.rangeCount === 0) break;
+        const range = sel.getRangeAt(0);
+
+        // Check if cursor/selection is already inside an inline <code> (excluding <pre><code>)
+        let codeNode = getClosestParent(range.commonAncestorContainer, 'code', editor)
+                    || getClosestParent(sel.anchorNode, 'code', editor);
+        if (codeNode && getClosestParent(codeNode, 'pre', editor)) {
+          codeNode = null;
+        }
+
+        if (codeNode) {
+          // Toggle off inline code: unwrap and restore normal text
+          const rawText = codeNode.textContent.replace(/^\u200B+|\u200B+$/g, '');
+          const textNode = document.createTextNode(rawText);
+          codeNode.parentNode.replaceChild(textNode, codeNode);
+          const newRange = document.createRange();
+          newRange.setStart(textNode, textNode.length);
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+        } else {
+          // Apply inline code
           const selectedText = sel.toString();
-          const parentCode = sel.anchorNode && sel.anchorNode.parentElement ? sel.anchorNode.parentElement.closest('code') : null;
-          if (parentCode) {
-            const textNode = document.createTextNode(parentCode.textContent);
-            parentCode.parentNode.replaceChild(textNode, parentCode);
-          } else if (selectedText) {
+          if (selectedText && selectedText.length > 0) {
             const codeEl = document.createElement('code');
-            try {
-              range.surroundContents(codeEl);
-            } catch (err) {
-              codeEl.textContent = selectedText;
-              range.deleteContents();
-              range.insertNode(codeEl);
-            }
-          } else {
-            const codeEl = document.createElement('code');
-            codeEl.textContent = 'code';
+            codeEl.className = 'zd-inline-code';
+            codeEl.textContent = selectedText;
+            range.deleteContents();
             range.insertNode(codeEl);
-            sel.selectAllChildren(codeEl);
+            const newRange = document.createRange();
+            newRange.selectNodeContents(codeEl);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          } else {
+            // No selection: check word under cursor or insert empty inline code
+            let wordWrapped = false;
+            if (range.startContainer && range.startContainer.nodeType === Node.TEXT_NODE) {
+              const fullText = range.startContainer.textContent;
+              const offset = range.startOffset;
+              const before = fullText.slice(0, offset);
+              const after = fullText.slice(offset);
+              const matchBefore = before.match(/\S+$/);
+              const matchAfter = after.match(/^\S+/);
+              if (matchBefore || matchAfter) {
+                const start = matchBefore ? offset - matchBefore[0].length : offset;
+                const end = matchAfter ? offset + matchAfter[0].length : offset;
+                if (end > start) {
+                  range.setStart(range.startContainer, start);
+                  range.setEnd(range.startContainer, end);
+                  const word = range.toString();
+                  const codeEl = document.createElement('code');
+                  codeEl.className = 'zd-inline-code';
+                  codeEl.textContent = word;
+                  range.deleteContents();
+                  range.insertNode(codeEl);
+                  const newRange = document.createRange();
+                  newRange.selectNodeContents(codeEl);
+                  sel.removeAllRanges();
+                  sel.addRange(newRange);
+                  wordWrapped = true;
+                }
+              }
+            }
+            if (!wordWrapped) {
+              const codeEl = document.createElement('code');
+              codeEl.className = 'zd-inline-code';
+              const zwsp = document.createTextNode('\u200B');
+              codeEl.appendChild(zwsp);
+              range.insertNode(codeEl);
+              const newRange = document.createRange();
+              newRange.setStart(zwsp, 1);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
           }
         }
         break;
@@ -1752,17 +1870,98 @@
 
       case 'codeblock': {
         const sel = window.getSelection();
-        if (sel && sel.rangeCount > 0) {
-          const range = sel.getRangeAt(0);
-          const selectedText = sel.toString() || 'code block';
-          const preEl = document.createElement('pre');
-          const codeEl = document.createElement('code');
-          codeEl.textContent = selectedText;
-          preEl.appendChild(codeEl);
-          range.deleteContents();
-          range.insertNode(preEl);
-          sel.selectAllChildren(codeEl);
+        if (!sel || sel.rangeCount === 0) break;
+        const range = sel.getRangeAt(0);
+
+        // Check if cursor/selection is already inside a <pre>
+        const preNode = getClosestParent(range.commonAncestorContainer, 'pre', editor)
+                     || getClosestParent(sel.anchorNode, 'pre', editor);
+
+        if (preNode) {
+          // Toggle off Code Block: unwrap and restore normal text/divs
+          const codeInside = preNode.querySelector('code');
+          const plainText = codeInside ? codeInside.innerText : preNode.innerText;
+          const cleanText = (plainText || '').replace(/^\u200B+|\u200B+$/g, '');
+
+          const parent = preNode.parentNode;
+          if (cleanText.includes('\n')) {
+            const lines = cleanText.split('\n');
+            const frag = document.createDocumentFragment();
+            let lastDiv = null;
+            lines.forEach(line => {
+              const lineDiv = document.createElement('div');
+              lineDiv.textContent = line || '\u200B';
+              frag.appendChild(lineDiv);
+              lastDiv = lineDiv;
+            });
+            parent.replaceChild(frag, preNode);
+            if (lastDiv) {
+              const newRange = document.createRange();
+              newRange.selectNodeContents(lastDiv);
+              newRange.collapse(false);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+          } else {
+            const div = document.createElement('div');
+            div.textContent = cleanText;
+            parent.replaceChild(div, preNode);
+            const newRange = document.createRange();
+            newRange.selectNodeContents(div);
+            newRange.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+        } else {
+          // Apply Code Block
+          const selectedText = sel.toString();
+          if (selectedText && selectedText.trim().length > 0) {
+            // Selected text becomes code block
+            const preEl = document.createElement('pre');
+            preEl.className = 'zd-code-block';
+            const codeEl = document.createElement('code');
+            codeEl.textContent = selectedText;
+            preEl.appendChild(codeEl);
+            range.deleteContents();
+            range.insertNode(preEl);
+            const newRange = document.createRange();
+            newRange.selectNodeContents(codeEl);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          } else {
+            // No selection: like native Zendesk in Image 2, put all editor text into the code block!
+            const fullText = editor.innerText ? editor.innerText.trim() : '';
+            if (fullText.length > 0) {
+              const preEl = document.createElement('pre');
+              preEl.className = 'zd-code-block';
+              const codeEl = document.createElement('code');
+              codeEl.textContent = fullText;
+              preEl.appendChild(codeEl);
+              editor.innerHTML = '';
+              editor.appendChild(preEl);
+              const newRange = document.createRange();
+              newRange.selectNodeContents(codeEl);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            } else {
+              // Completely blank editor: create empty code block with zero-width space
+              const preEl = document.createElement('pre');
+              preEl.className = 'zd-code-block';
+              const codeEl = document.createElement('code');
+              const zwsp = document.createTextNode('\u200B');
+              codeEl.appendChild(zwsp);
+              preEl.appendChild(codeEl);
+              editor.innerHTML = '';
+              editor.appendChild(preEl);
+              const newRange = document.createRange();
+              newRange.setStart(zwsp, 1);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+          }
         }
+        sanitizeEditorPreElements(editor);
         break;
       }
 
@@ -2813,14 +3012,41 @@
       }
     });
 
-    // 12d. Update active state of toolbar buttons (Bold, Italic, Underline, Lists) on selection change
+    // 12d. Update active state of toolbar buttons (Bold, Italic, Underline, Lists, Code, Codeblock, Quote) on selection change
     ['keyup', 'mouseup', 'focus', 'input'].forEach(evtType => {
       document.addEventListener(evtType, (e) => {
-        const editor = e.target.closest('.zd-composer-editor');
+        const editor = e.target.closest ? e.target.closest('.zd-composer-editor') : null;
         if (editor) {
           updateComposerActiveToolbar(editor);
         }
       });
+    });
+
+    document.addEventListener('selectionchange', () => {
+      const activeEl = document.activeElement;
+      const editor = activeEl && activeEl.closest ? activeEl.closest('.zd-composer-editor') : null;
+      if (editor) {
+        updateComposerActiveToolbar(editor);
+      }
+    });
+
+    // 12e. Support clean multi-line formatting inside code blocks on Enter
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const sel = window.getSelection();
+        if (sel && sel.anchorNode) {
+          const editor = (sel.anchorNode.nodeType === Node.ELEMENT_NODE)
+            ? sel.anchorNode.closest('.zd-composer-editor')
+            : (sel.anchorNode.parentElement ? sel.anchorNode.parentElement.closest('.zd-composer-editor') : null);
+          if (editor) {
+            const pre = getClosestParent(sel.anchorNode, 'pre', editor);
+            if (pre) {
+              e.preventDefault();
+              document.execCommand('insertLineBreak');
+            }
+          }
+        }
+      }
     });
 
     // 13. Search inside Merge Modal (Auto-searches as you type)
