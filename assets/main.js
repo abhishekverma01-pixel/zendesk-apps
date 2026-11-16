@@ -39,9 +39,10 @@
     currentUserGroupIds: new Set(),
     collapsedSections: {},
 
-    // Pagination (Strict 30 Tickets per page)
+    // Pagination (Strict 30 Tickets per page) & View Table Selection
     pageSize: 30,
     currentPage: 1,
+    selectedViewTicketIds: new Set(),
 
     // Duplicate Customers State & Pagination (10 Customer Groups per page)
     duplicateRequesters: [],
@@ -105,9 +106,16 @@
     btnDate30d: document.getElementById('btn-date-30d'),
     btnDateClear: document.getElementById('btn-date-clear'),
 
-    // View Meta
+    // View Meta & Bulk Actions
     viewMetaCount: document.getElementById('view-meta-count'),
     viewMetaUpdated: document.getElementById('view-meta-updated'),
+    viewSelectAllTickets: document.getElementById('view-select-all-tickets'),
+    viewBulkActions: document.getElementById('view-bulk-actions'),
+    viewBulkCount: document.getElementById('view-bulk-count'),
+    btnViewBulkMerge: document.getElementById('btn-view-bulk-merge'),
+    btnViewBulkDelete: document.getElementById('btn-view-bulk-delete'),
+    viewMergeCount: document.getElementById('view-merge-count'),
+    viewDeleteCount: document.getElementById('view-delete-count'),
 
     // Table Body
     ticketsTableBody: document.getElementById('tickets-table-body'),
@@ -160,6 +168,17 @@
     textPrivacyDestination: document.getElementById('text-privacy-destination'),
     mergeModalAlert: document.getElementById('merge-modal-alert'),
     appToast: document.getElementById('app-toast'),
+
+    // Bulk Delete Modal Elements
+    deleteModal: document.getElementById('delete-modal'),
+    btnCloseDeleteModal: document.getElementById('btn-close-delete-modal'),
+    btnCancelDelete: document.getElementById('btn-cancel-delete'),
+    btnConfirmDelete: document.getElementById('btn-confirm-delete'),
+    deleteBtnText: document.getElementById('delete-btn-text'),
+    deleteBtnSpinner: document.getElementById('delete-btn-spinner'),
+    deleteModalCount: document.getElementById('delete-modal-count'),
+    deleteTicketsList: document.getElementById('delete-tickets-list'),
+    deleteModalAlert: document.getElementById('delete-modal-alert'),
 
     // Hover Popover
     ticketHoverPopover: document.getElementById('ticket-hover-popover'),
@@ -570,12 +589,15 @@
   function fetchTicketsForSelectedView(smoothTransition = true) {
     if (!state.selectedViewId || !state.client) return;
 
+    state.selectedViewTicketIds.clear();
+    updateViewBulkActionBar();
+
     const tableWrap = document.querySelector('.tickets-table-wrap');
     if (tableWrap) tableWrap.classList.add('is-loading');
 
     elements.ticketsTableBody.innerHTML = `
       <tr>
-        <td colspan="7" class="table-loading-cell">Loading view tickets...</td>
+        <td colspan="8" class="table-loading-cell">Loading view tickets...</td>
       </tr>
     `;
 
@@ -656,7 +678,7 @@
             console.error('execute.json failed:', finalErr);
             elements.ticketsTableBody.innerHTML = `
               <tr>
-                <td colspan="7" class="table-empty-cell" style="color:#d93f4c;">Unable to load tickets for this view.</td>
+                <td colspan="8" class="table-empty-cell" style="color:#d93f4c;">Unable to load tickets for this view.</td>
               </tr>
             `;
             if (tableWrap) tableWrap.classList.remove('is-loading');
@@ -970,6 +992,8 @@
       state.currentPage = 1;
     }
 
+    state.selectedViewTicketIds.clear();
+    updateViewBulkActionBar();
     renderViewTicketsTable();
   }
 
@@ -997,11 +1021,12 @@
     if (totalCount === 0) {
       elements.ticketsTableBody.innerHTML = `
         <tr>
-          <td colspan="7" class="table-empty-cell">
+          <td colspan="8" class="table-empty-cell">
             ${state.rawViewTickets.length === 0 ? 'No tickets in this view.' : 'No tickets match the active filters. Click "Reset All Filters" to clear.'}
           </td>
         </tr>
       `;
+      updateViewBulkActionBar();
       return;
     }
 
@@ -1012,6 +1037,7 @@
     elements.ticketsTableBody.innerHTML = pageTickets.map(t => {
       const status = t.status || 'open';
       const statusBadgeClass = `badge badge-${status.toLowerCase()}`;
+      const isSelected = state.selectedViewTicketIds.has(t.id);
       
       let requesterName = 'Customer';
       if (t.requester) {
@@ -1028,7 +1054,10 @@
       const typeText = t.type ? capitalize(t.type) : '-';
 
       return `
-        <tr class="ticket-row" data-id="${t.id}">
+        <tr class="ticket-row ${isSelected ? 'is-selected' : ''}" data-id="${t.id}">
+          <td class="td-cb" onclick="event.stopPropagation()">
+            <input type="checkbox" class="view-ticket-checkbox zd-checkbox" data-ticket-id="${t.id}" ${isSelected ? 'checked' : ''} />
+          </td>
           <td class="td-status">
             <span class="${statusBadgeClass}">${escapeHtml(status)}</span>
           </td>
@@ -1048,7 +1077,35 @@
       `;
     }).join('');
 
+    updateViewBulkActionBar();
     attachTableHoverListeners();
+  }
+
+  function updateViewBulkActionBar() {
+    const count = state.selectedViewTicketIds.size;
+    if (elements.viewBulkActions) {
+      if (count > 0) {
+        elements.viewBulkActions.classList.remove('hidden');
+        if (elements.viewBulkCount) elements.viewBulkCount.textContent = `${count} selected`;
+        if (elements.viewMergeCount) elements.viewMergeCount.textContent = count;
+        if (elements.viewDeleteCount) elements.viewDeleteCount.textContent = count;
+      } else {
+        elements.viewBulkActions.classList.add('hidden');
+      }
+    }
+
+    // Update Header select-all checkbox state
+    if (elements.viewSelectAllTickets) {
+      const pageCbs = Array.from(document.querySelectorAll('.view-ticket-checkbox'));
+      if (pageCbs.length === 0) {
+        elements.viewSelectAllTickets.checked = false;
+        elements.viewSelectAllTickets.indeterminate = false;
+      } else {
+        const checkedCount = pageCbs.filter(cb => cb.checked).length;
+        elements.viewSelectAllTickets.checked = (checkedCount === pageCbs.length && checkedCount > 0);
+        elements.viewSelectAllTickets.indeterminate = (checkedCount > 0 && checkedCount < pageCbs.length);
+      }
+    }
   }
 
   function capitalize(str) {
@@ -1733,27 +1790,56 @@
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  function openMergeModal(customerId) {
-    const customer = state.duplicateRequesters.find(c => String(c.id) === String(customerId));
-    if (!customer || !customer.tickets || customer.tickets.length === 0) return;
+  function openMergeModal(customerIdOrTickets) {
+    let customer = null;
+    let customerId = null;
+    let selectedIds = [];
+    let selectedTickets = [];
+    let allTickets = [];
 
-    const checkedBoxes = Array.from(document.querySelectorAll(`.dup-ticket-checkbox[data-customer-id="${customerId}"]:checked`));
-    let selectedIds = checkedBoxes.map(cb => parseInt(cb.getAttribute('data-ticket-id'), 10)).filter(Boolean);
+    if (Array.isArray(customerIdOrTickets)) {
+      // Called with array of tickets (e.g. from View tickets table bulk action)
+      selectedTickets = [...customerIdOrTickets];
+      selectedIds = selectedTickets.map(t => t.id);
+      allTickets = [...selectedTickets];
+      if (selectedTickets.length > 0) {
+        const first = selectedTickets[0];
+        const req = first.requester || {};
+        customerId = req.id || 'view-selected';
+        customer = {
+          id: customerId,
+          name: req.name || 'Selected Tickets',
+          email: req.email || '',
+          tickets: selectedTickets
+        };
+      }
+    } else {
+      // Called with customerId (from Duplicates Queue)
+      customerId = customerIdOrTickets;
+      customer = state.duplicateRequesters.find(c => String(c.id) === String(customerId));
+      if (!customer || !customer.tickets || customer.tickets.length === 0) return;
 
-    // If agent clicked without checking boxes, select first 2 tickets as default
-    if (selectedIds.length === 0 && customer.tickets.length >= 2) {
-      selectedIds = [customer.tickets[0].id, customer.tickets[1].id];
+      const checkedBoxes = Array.from(document.querySelectorAll(`.dup-ticket-checkbox[data-customer-id="${customerId}"]:checked`));
+      selectedIds = checkedBoxes.map(cb => parseInt(cb.getAttribute('data-ticket-id'), 10)).filter(Boolean);
+
+      // If agent clicked without checking boxes, select first 2 tickets as default
+      if (selectedIds.length === 0 && customer.tickets.length >= 2) {
+        selectedIds = [customer.tickets[0].id, customer.tickets[1].id];
+      }
+
+      selectedTickets = customer.tickets.filter(t => selectedIds.includes(t.id));
+      allTickets = [...customer.tickets];
     }
 
-    const selectedTickets = customer.tickets.filter(t => selectedIds.includes(t.id));
+    if (selectedTickets.length === 0) return;
 
     state.mergeState = {
       customer: customer,
       customerId: customerId,
       sourceTicketIds: selectedIds,
       sourceTickets: selectedTickets,
-      allCustomerTickets: [...customer.tickets],
-      candidateTickets: [...customer.tickets],
+      allCustomerTickets: allTickets,
+      candidateTickets: allTickets,
       targetTicket: null,
       searchQuery: '',
       isSubmitting: false,
@@ -1786,6 +1872,11 @@
     if (elements.mergeSourceComment) elements.mergeSourceComment.value = '';
     if (elements.menuPrivacyClosing) elements.menuPrivacyClosing.classList.add('hidden');
     if (elements.menuPrivacyDestination) elements.menuPrivacyDestination.classList.add('hidden');
+
+    // If 2 or more tickets selected, pre-select the first ticket as target for instant convenience
+    if (selectedTickets.length >= 2) {
+      selectTargetTicket(selectedTickets[0]);
+    }
 
     // Open Modal
     if (elements.mergeModal) {
@@ -2176,6 +2267,14 @@
       }).then(() => {
         showToast(`Successfully merged ${closingIds.length} ticket(s) into #${targetId}!`);
         closeMergeModal();
+        // Remove closed tickets from view table if present
+        if (state.rawViewTickets && state.rawViewTickets.length > 0) {
+          state.rawViewTickets = state.rawViewTickets.filter(t => !closingIds.includes(t.id));
+          state.filteredViewTickets = state.filteredViewTickets.filter(t => !closingIds.includes(t.id));
+          state.selectedViewTicketIds.clear();
+          updateViewBulkActionBar();
+          renderViewTicketsTable();
+        }
         scanDuplicateCustomers();
       }).catch(err => {
         console.error('Zendesk merge failed:', err);
@@ -2199,6 +2298,13 @@
         closeMergeModal();
         if (state.mergeState.customer) {
           state.mergeState.customer.tickets = state.mergeState.customer.tickets.filter(t => !closingIds.includes(t.id));
+        }
+        if (state.rawViewTickets && state.rawViewTickets.length > 0) {
+          state.rawViewTickets = state.rawViewTickets.filter(t => !closingIds.includes(t.id));
+          state.filteredViewTickets = state.filteredViewTickets.filter(t => !closingIds.includes(t.id));
+          state.selectedViewTicketIds.clear();
+          updateViewBulkActionBar();
+          renderViewTicketsTable();
         }
         renderDuplicateResults();
       }, 600);
@@ -2226,6 +2332,123 @@
     if (elements.mergeModalAlert) {
       elements.mergeModalAlert.classList.add('hidden');
       elements.mergeModalAlert.textContent = '';
+    }
+  }
+
+  // ==========================================
+  // BULK DELETE TICKETS MODAL & ACTION
+  // ==========================================
+
+  function openDeleteModal() {
+    const selectedIds = Array.from(state.selectedViewTicketIds);
+    if (selectedIds.length === 0) return;
+
+    const selectedTickets = state.rawViewTickets.filter(t => selectedIds.includes(t.id));
+
+    if (elements.deleteModalCount) {
+      elements.deleteModalCount.textContent = selectedIds.length;
+    }
+
+    if (elements.deleteTicketsList) {
+      elements.deleteTicketsList.innerHTML = selectedTickets.map(t => `
+        <div class="delete-ticket-item">
+          <span class="delete-ticket-id">#${t.id}</span>
+          <span class="delete-ticket-subject" title="${escapeHtml(t.subject || '')}">${escapeHtml(t.subject || 'Ticket #' + t.id)}</span>
+        </div>
+      `).join('');
+    }
+
+    if (elements.deleteBtnText) elements.deleteBtnText.textContent = 'Permanently Delete';
+    if (elements.deleteBtnSpinner) elements.deleteBtnSpinner.classList.add('hidden');
+    if (elements.btnConfirmDelete) elements.btnConfirmDelete.disabled = false;
+    hideDeleteAlert();
+
+    if (elements.deleteModal) {
+      elements.deleteModal.classList.remove('hidden');
+    }
+  }
+
+  function closeDeleteModal() {
+    if (elements.deleteModal) {
+      elements.deleteModal.classList.add('hidden');
+    }
+    hideDeleteAlert();
+  }
+
+  function showDeleteAlert(msg) {
+    if (elements.deleteModalAlert) {
+      elements.deleteModalAlert.textContent = msg;
+      elements.deleteModalAlert.classList.remove('hidden');
+    }
+  }
+
+  function hideDeleteAlert() {
+    if (elements.deleteModalAlert) {
+      elements.deleteModalAlert.classList.add('hidden');
+      elements.deleteModalAlert.textContent = '';
+    }
+  }
+
+  function executeTicketDelete() {
+    const selectedIds = Array.from(state.selectedViewTicketIds);
+    if (selectedIds.length === 0) {
+      closeDeleteModal();
+      return;
+    }
+
+    if (elements.btnConfirmDelete) elements.btnConfirmDelete.disabled = true;
+    if (elements.deleteBtnText) elements.deleteBtnText.textContent = 'Deleting...';
+    if (elements.deleteBtnSpinner) elements.deleteBtnSpinner.classList.remove('hidden');
+    hideDeleteAlert();
+
+    if (state.client) {
+      const deleteUrl = (selectedIds.length === 1)
+        ? `/api/v2/tickets/${selectedIds[0]}.json`
+        : `/api/v2/tickets/destroy_many.json?ids=${selectedIds.join(',')}`;
+
+      state.client.request({
+        url: deleteUrl,
+        type: 'DELETE',
+        dataType: 'json'
+      }).then(() => {
+        showToast(`Successfully deleted ${selectedIds.length} ticket(s).`);
+        closeDeleteModal();
+
+        state.rawViewTickets = state.rawViewTickets.filter(t => !selectedIds.includes(t.id));
+        state.filteredViewTickets = state.filteredViewTickets.filter(t => !selectedIds.includes(t.id));
+        state.selectedViewTicketIds.clear();
+        updateViewBulkActionBar();
+        renderViewTicketsTable();
+
+        if (state.duplicateRequesters.length > 0) {
+          scanDuplicateCustomers();
+        }
+      }).catch(err => {
+        console.error('Zendesk delete failed:', err);
+        let errMsg = 'Failed to delete tickets in Zendesk.';
+        if (err && err.responseJSON && err.responseJSON.description) {
+          errMsg = err.responseJSON.description;
+        } else if (err && err.responseJSON && err.responseJSON.error) {
+          errMsg = typeof err.responseJSON.error === 'string' ? err.responseJSON.error : JSON.stringify(err.responseJSON.error);
+        } else if (err && err.message) {
+          errMsg = err.message;
+        }
+        showDeleteAlert(errMsg);
+        if (elements.btnConfirmDelete) elements.btnConfirmDelete.disabled = false;
+        if (elements.deleteBtnText) elements.deleteBtnText.textContent = 'Permanently Delete';
+        if (elements.deleteBtnSpinner) elements.deleteBtnSpinner.classList.add('hidden');
+      });
+    } else {
+      // Local preview fallback
+      setTimeout(() => {
+        showToast(`[Preview] Deleted ${selectedIds.length} ticket(s).`);
+        closeDeleteModal();
+        state.rawViewTickets = state.rawViewTickets.filter(t => !selectedIds.includes(t.id));
+        state.filteredViewTickets = state.filteredViewTickets.filter(t => !selectedIds.includes(t.id));
+        state.selectedViewTicketIds.clear();
+        updateViewBulkActionBar();
+        renderViewTicketsTable();
+      }, 500);
     }
   }
 
@@ -2486,14 +2709,30 @@
       scheduleHidePopover();
     });
 
-    // 12. Duplicate Checkboxes change listener
+    // 12. Checkboxes change listener (Views & Duplicates)
     document.addEventListener('change', (e) => {
+      // Normal View Tickets Checkbox
+      if (e.target.classList.contains('view-ticket-checkbox')) {
+        const ticketId = parseInt(e.target.getAttribute('data-ticket-id'), 10);
+        if (e.target.checked) {
+          state.selectedViewTicketIds.add(ticketId);
+        } else {
+          state.selectedViewTicketIds.delete(ticketId);
+        }
+        const row = e.target.closest('tr');
+        if (row) row.classList.toggle('is-selected', e.target.checked);
+        updateViewBulkActionBar();
+        return;
+      }
+
+      // Duplicate Customer Tickets Checkbox
       if (e.target.classList.contains('dup-ticket-checkbox')) {
         const customerId = e.target.getAttribute('data-customer-id');
         updateCustomerMergeButton(customerId);
         return;
       }
 
+      // Duplicate Customer Select All
       if (e.target.classList.contains('dup-select-all-checkbox')) {
         const customerId = e.target.getAttribute('data-customer-id');
         const isChecked = e.target.checked;
@@ -2503,6 +2742,26 @@
         return;
       }
     });
+
+    // 12b. Normal View Table Header Select All Checkbox
+    if (elements.viewSelectAllTickets) {
+      elements.viewSelectAllTickets.addEventListener('change', (e) => {
+        const isChecked = e.target.checked;
+        const pageCbs = Array.from(document.querySelectorAll('.view-ticket-checkbox'));
+        pageCbs.forEach(cb => {
+          cb.checked = isChecked;
+          const ticketId = parseInt(cb.getAttribute('data-ticket-id'), 10);
+          if (isChecked) {
+            state.selectedViewTicketIds.add(ticketId);
+          } else {
+            state.selectedViewTicketIds.delete(ticketId);
+          }
+          const row = cb.closest('tr');
+          if (row) row.classList.toggle('is-selected', isChecked);
+        });
+        updateViewBulkActionBar();
+      });
+    }
 
     // 13. Search inside Merge Modal
     if (elements.mergeTargetSearch) {
@@ -2521,15 +2780,51 @@
       });
     }
 
-    // 14. Keyboard Escape to close modal
+    // 14. Keyboard Escape to close modals
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && elements.mergeModal && !elements.mergeModal.classList.contains('hidden')) {
-        closeMergeModal();
+      if (e.key === 'Escape') {
+        if (elements.mergeModal && !elements.mergeModal.classList.contains('hidden')) {
+          closeMergeModal();
+        }
+        if (elements.deleteModal && !elements.deleteModal.classList.contains('hidden')) {
+          closeDeleteModal();
+        }
       }
     });
 
-    // 15. Delegate Clicks for ticket opening, merge flow, search, and show more
+    // 15. Delegate Clicks for ticket opening, merge flow, bulk actions, search, and show more
     document.addEventListener('click', (e) => {
+      // View Bulk Action: Merge Selected Tickets
+      if (e.target.closest('#btn-view-bulk-merge')) {
+        const selectedIds = Array.from(state.selectedViewTicketIds);
+        if (selectedIds.length === 0) return;
+        const selectedTickets = state.rawViewTickets.filter(t => selectedIds.includes(t.id));
+        openMergeModal(selectedTickets);
+        return;
+      }
+
+      // View Bulk Action: Delete Selected Tickets
+      if (e.target.closest('#btn-view-bulk-delete')) {
+        openDeleteModal();
+        return;
+      }
+
+      // Delete Modal Close / Cancel / Confirm Buttons
+      if (e.target.closest('#btn-close-delete-modal') || e.target.closest('#btn-cancel-delete')) {
+        closeDeleteModal();
+        return;
+      }
+
+      if (e.target.closest('#btn-confirm-delete')) {
+        executeTicketDelete();
+        return;
+      }
+
+      if (e.target === elements.deleteModal) {
+        closeDeleteModal();
+        return;
+      }
+
       const openBtn = e.target.closest('.btn-open-ticket');
       if (openBtn) {
         const id = openBtn.getAttribute('data-id');
