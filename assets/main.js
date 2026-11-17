@@ -2372,7 +2372,8 @@
       searchQuery: '',
       isSubmitting: false,
       sourceCommentIsPublic: false,
-      targetCommentIsPublic: false
+      targetCommentIsPublic: false,
+      closingComments: {}
     };
 
     // Render source tickets list
@@ -2543,6 +2544,67 @@
     return false;
   }
 
+  function fetchTicketLatestComment(ticketId) {
+    if (!ticketId) return Promise.resolve(null);
+    state.mergeState = state.mergeState || {};
+    state.mergeState.closingComments = state.mergeState.closingComments || {};
+
+    if (state.mergeState.closingComments[ticketId]) {
+      return Promise.resolve(state.mergeState.closingComments[ticketId]);
+    }
+
+    if (!state.client) {
+      const mockComment = {
+        id: 9000 + Number(ticketId),
+        body: 'Latest comment for ticket #' + ticketId,
+        public: true,
+        created_at: new Date().toISOString()
+      };
+      state.mergeState.closingComments[ticketId] = mockComment;
+      return Promise.resolve(mockComment);
+    }
+
+    return state.client.request({
+      url: `/api/v2/tickets/${ticketId}/comments.json?sort_order=desc`,
+      type: 'GET',
+      dataType: 'json'
+    }).then(res => {
+      const comments = (res && res.comments) || [];
+      if (comments.length === 0) return null;
+      comments.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      const latest = comments[0];
+      const bodyText = (latest.plain_body || latest.body || '').trim();
+      const commentData = {
+        id: latest.id,
+        body: bodyText,
+        public: !!latest.public,
+        created_at: latest.created_at
+      };
+      state.mergeState.closingComments[ticketId] = commentData;
+      return commentData;
+    }).catch(err => {
+      console.warn(`[Merge] Could not fetch comments for ticket #${ticketId}:`, err);
+      return null;
+    });
+  }
+
+  function buildNativeDestinationComment(closingTickets, commentsMap) {
+    if (!closingTickets || closingTickets.length === 0) {
+      return 'This ticket now includes merged content.';
+    }
+
+    return closingTickets.map(t => {
+      const rawSubj = (t.subject || '').trim();
+      const cleanSubj = rawSubj ? ` ${rawSubj.replace(/\.+$/, '')}.` : '.';
+      let block = `This ticket now includes merged content from #${t.id}${cleanSubj}`;
+      const commentObj = commentsMap && commentsMap[t.id];
+      if (commentObj && commentObj.body && commentObj.body.trim()) {
+        block += `\nLast comment in ticket #${t.id}:\n${commentObj.body.trim()}`;
+      }
+      return block;
+    }).join('\n\n');
+  }
+
   function selectTargetTicket(ticket) {
     if (!ticket) return;
     state.mergeState.targetTicket = ticket;
@@ -2583,8 +2645,17 @@
       }
     }
 
+    // Find all closing ticket objects
+    const closingTickets = closingIds.map(id => {
+      return (state.mergeState.sourceTickets && state.mergeState.sourceTickets.find(t => t.id === id)) ||
+             (state.mergeState.allCustomerTickets && state.mergeState.allCustomerTickets.find(t => t.id === id)) ||
+             (state.rawViewTickets && state.rawViewTickets.find(t => t.id === id)) ||
+             { id: id, subject: '' };
+    });
+    state.mergeState.closingTickets = closingTickets;
+    state.mergeState.closingComments = state.mergeState.closingComments || {};
+
     // Check if tickets belong to different organization or requester
-    const closingTickets = state.mergeState.allCustomerTickets.filter(t => closingIds.includes(t.id));
     const hasMismatch = checkOrgAndRequesterMismatch(ticket, closingTickets);
 
     if (elements.mergeOrgWarning) {
@@ -2601,22 +2672,32 @@
     }
 
     // Pre-fill native Zendesk comments
-    const targetSubject = (ticket.subject && ticket.subject.trim()) ? ` ${ticket.subject.trim()}.` : '.';
+    const rawTargetSubj = (ticket.subject && ticket.subject.trim()) ? ticket.subject.trim().replace(/\.+$/, '') : '';
+    const targetSubject = rawTargetSubj ? ` ${rawTargetSubj}.` : '.';
     const defaultClosingComment = `Merged into #${ticket.id}${targetSubject} This ticket is now closed.`;
 
-    let defaultDestComment = '';
-    if (closingIds.length === 1) {
-      defaultDestComment = `This ticket now includes merged content from #${closingIds[0]}.`;
-    } else if (closingIds.length === 2) {
-      defaultDestComment = `This ticket now includes merged content from #${closingIds[0]} and #${closingIds[1]}.`;
-    } else if (closingIds.length > 2) {
-      defaultDestComment = `This ticket now includes merged content from #${closingIds.slice(0, -1).join(', #')} and #${closingIds[closingIds.length - 1]}.`;
-    } else {
-      defaultDestComment = 'This ticket now includes merged content.';
-    }
+    const initialDestComment = buildNativeDestinationComment(closingTickets, state.mergeState.closingComments);
 
     setComposerText(elements.mergeSourceComment, defaultClosingComment);
-    setComposerText(elements.mergeTargetComment, defaultDestComment);
+    setComposerText(elements.mergeTargetComment, initialDestComment);
+
+    // Fetch latest comments for closing tickets asynchronously and update composer
+    const currentTargetId = ticket.id;
+    const ticketsToFetch = closingTickets.filter(t => !state.mergeState.closingComments[t.id]);
+
+    if (ticketsToFetch.length > 0) {
+      Promise.all(ticketsToFetch.map(t => fetchTicketLatestComment(t.id))).then(() => {
+        // If the selected target is still the active target, update composer with the full native comment!
+        if (state.mergeState.targetTicket && state.mergeState.targetTicket.id === currentTargetId) {
+          const updatedDestComment = buildNativeDestinationComment(closingTickets, state.mergeState.closingComments);
+          const currentText = getComposerText(elements.mergeTargetComment).trim();
+          const baseInitial = initialDestComment.trim();
+          if (!currentText || currentText === baseInitial || currentText.startsWith('This ticket now includes merged content')) {
+            setComposerText(elements.mergeTargetComment, updatedDestComment);
+          }
+        }
+      });
+    }
 
     // Enable Confirm Button - NOTE: warning is IGNORABLE and DOES NOT block or disable button!
     if (elements.btnConfirmMerge) {
@@ -2785,92 +2866,113 @@
     if (elements.mergeBtnSpinner) elements.mergeBtnSpinner.classList.remove('hidden');
     hideMergeAlert();
 
-    const targetSubject = (state.mergeState.targetTicket.subject && state.mergeState.targetTicket.subject.trim())
-      ? ` ${state.mergeState.targetTicket.subject.trim()}.`
-      : '.';
-    const defaultSourceComment = `Merged into #${targetId}${targetSubject} This ticket is now closed.`;
+    const closingTickets = closingIds.map(id => {
+      return (state.mergeState.sourceTickets && state.mergeState.sourceTickets.find(t => t.id === id)) ||
+             (state.mergeState.allCustomerTickets && state.mergeState.allCustomerTickets.find(t => t.id === id)) ||
+             (state.rawViewTickets && state.rawViewTickets.find(t => t.id === id)) ||
+             { id: id, subject: '' };
+    });
 
-    let defaultTargetComment = '';
-    if (closingIds.length === 1) {
-      defaultTargetComment = `This ticket now includes merged content from #${closingIds[0]}.`;
-    } else if (closingIds.length === 2) {
-      defaultTargetComment = `This ticket now includes merged content from #${closingIds[0]} and #${closingIds[1]}.`;
-    } else if (closingIds.length > 2) {
-      defaultTargetComment = `This ticket now includes merged content from #${closingIds.slice(0, -1).join(', #')} and #${closingIds[closingIds.length - 1]}.`;
-    } else {
-      defaultTargetComment = 'This ticket now includes merged content.';
-    }
+    state.mergeState.closingComments = state.mergeState.closingComments || {};
+    const pendingTickets = closingTickets.filter(t => !state.mergeState.closingComments[t.id]);
 
-    const targetText = getComposerText(elements.mergeTargetComment);
-    const targetHtml = getComposerHtml(elements.mergeTargetComment);
-    const sourceText = getComposerText(elements.mergeSourceComment);
-    const sourceHtml = getComposerHtml(elements.mergeSourceComment);
+    const proceedWithMerge = () => {
+      const rawTargetSubj = (state.mergeState.targetTicket.subject && state.mergeState.targetTicket.subject.trim())
+        ? state.mergeState.targetTicket.subject.trim().replace(/\.+$/, '')
+        : '';
+      const targetSubject = rawTargetSubj ? ` ${rawTargetSubj}.` : '.';
+      const defaultSourceComment = `Merged into #${targetId}${targetSubject} This ticket is now closed.`;
 
-    const hasTargetHtml = /<(b|i|u|strong|em|ul|ol|li|blockquote|code|pre|a)\b/i.test(targetHtml);
-    const hasSourceHtml = /<(b|i|u|strong|em|ul|ol|li|blockquote|code|pre|a)\b/i.test(sourceHtml);
+      const defaultTargetComment = buildNativeDestinationComment(closingTickets, state.mergeState.closingComments);
 
-    // Convert rich HTML to Zendesk-compliant Markdown so links like [closed](url) and formatting render natively in Zendesk ticket view!
-    const targetComment = targetText ? (hasTargetHtml ? convertHtmlToZendeskMarkdown(targetHtml) : targetText) : defaultTargetComment;
-    const sourceComment = sourceText ? (hasSourceHtml ? convertHtmlToZendeskMarkdown(sourceHtml) : sourceText) : defaultSourceComment;
+      const targetText = getComposerText(elements.mergeTargetComment);
+      const targetHtml = getComposerHtml(elements.mergeTargetComment);
+      const sourceText = getComposerText(elements.mergeSourceComment);
+      const sourceHtml = getComposerHtml(elements.mergeSourceComment);
 
-    const payload = {
-      ids: closingIds,
-      target_comment: targetComment,
-      source_comment: sourceComment,
-      target_comment_is_public: !!state.mergeState.targetCommentIsPublic,
-      source_comment_is_public: !!state.mergeState.sourceCommentIsPublic
+      const hasTargetHtml = /<(b|i|u|strong|em|ul|ol|li|blockquote|code|pre|a)\b/i.test(targetHtml);
+      const hasSourceHtml = /<(b|i|u|strong|em|ul|ol|li|blockquote|code|pre|a)\b/i.test(sourceHtml);
+
+      // Determine final target comment: prefer custom if modified, else full native comment with last comments
+      let targetComment = targetText;
+      const hasLastCommentBlock = targetComment && targetComment.includes('Last comment in ticket #');
+      if (!targetComment || (!hasLastCommentBlock && defaultTargetComment.includes('Last comment in ticket #'))) {
+        targetComment = defaultTargetComment;
+      } else if (hasTargetHtml) {
+        targetComment = convertHtmlToZendeskMarkdown(targetHtml);
+      }
+
+      const sourceComment = sourceText ? (hasSourceHtml ? convertHtmlToZendeskMarkdown(sourceHtml) : sourceText) : defaultSourceComment;
+
+      const payload = {
+        ids: closingIds,
+        target_comment: targetComment,
+        source_comment: sourceComment,
+        target_comment_is_public: !!state.mergeState.targetCommentIsPublic,
+        source_comment_is_public: !!state.mergeState.sourceCommentIsPublic
+      };
+
+      if (state.client) {
+        state.client.request({
+          url: `/api/v2/tickets/${targetId}/merge.json`,
+          type: 'POST',
+          contentType: 'application/json',
+          data: JSON.stringify(payload)
+        }).then(() => {
+          showToast(`Successfully merged ${closingIds.length} ticket(s) into #${targetId}!`);
+          closeMergeModal();
+          // Remove closed tickets from view table if present
+          if (state.rawViewTickets && state.rawViewTickets.length > 0) {
+            state.rawViewTickets = state.rawViewTickets.filter(t => !closingIds.includes(t.id));
+            state.filteredViewTickets = state.filteredViewTickets.filter(t => !closingIds.includes(t.id));
+            state.selectedViewTicketIds.clear();
+            updateViewBulkActionBar();
+            renderViewTicketsTable();
+          }
+          scanDuplicateCustomers();
+        }).catch(err => {
+          console.error('Zendesk merge failed:', err);
+          let errMsg = 'Failed to merge tickets in Zendesk.';
+          if (err && err.responseJSON && err.responseJSON.description) {
+            errMsg = err.responseJSON.description;
+          } else if (err && err.responseJSON && err.responseJSON.error) {
+            errMsg = typeof err.responseJSON.error === 'string' ? err.responseJSON.error : JSON.stringify(err.responseJSON.error);
+          } else if (err && err.message) {
+            errMsg = err.message;
+          }
+          showMergeAlert(errMsg, 'error');
+          if (elements.btnConfirmMerge) elements.btnConfirmMerge.disabled = false;
+          if (elements.mergeBtnText) elements.mergeBtnText.textContent = 'Confirm and Merge';
+          if (elements.mergeBtnSpinner) elements.mergeBtnSpinner.classList.add('hidden');
+        });
+      } else {
+        // Local development preview fallback
+        setTimeout(() => {
+          showToast(`[Preview] Merged ${closingIds.length} ticket(s) into #${targetId}!`);
+          closeMergeModal();
+          if (state.mergeState.customer) {
+            state.mergeState.customer.tickets = state.mergeState.customer.tickets.filter(t => !closingIds.includes(t.id));
+          }
+          if (state.rawViewTickets && state.rawViewTickets.length > 0) {
+            state.rawViewTickets = state.rawViewTickets.filter(t => !closingIds.includes(t.id));
+            state.filteredViewTickets = state.filteredViewTickets.filter(t => !closingIds.includes(t.id));
+            state.selectedViewTicketIds.clear();
+            updateViewBulkActionBar();
+            renderViewTicketsTable();
+          }
+          renderDuplicateResults();
+        }, 600);
+      }
     };
 
-    if (state.client) {
-      state.client.request({
-        url: `/api/v2/tickets/${targetId}/merge.json`,
-        type: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify(payload)
-      }).then(() => {
-        showToast(`Successfully merged ${closingIds.length} ticket(s) into #${targetId}!`);
-        closeMergeModal();
-        // Remove closed tickets from view table if present
-        if (state.rawViewTickets && state.rawViewTickets.length > 0) {
-          state.rawViewTickets = state.rawViewTickets.filter(t => !closingIds.includes(t.id));
-          state.filteredViewTickets = state.filteredViewTickets.filter(t => !closingIds.includes(t.id));
-          state.selectedViewTicketIds.clear();
-          updateViewBulkActionBar();
-          renderViewTicketsTable();
-        }
-        scanDuplicateCustomers();
-      }).catch(err => {
-        console.error('Zendesk merge failed:', err);
-        let errMsg = 'Failed to merge tickets in Zendesk.';
-        if (err && err.responseJSON && err.responseJSON.description) {
-          errMsg = err.responseJSON.description;
-        } else if (err && err.responseJSON && err.responseJSON.error) {
-          errMsg = typeof err.responseJSON.error === 'string' ? err.responseJSON.error : JSON.stringify(err.responseJSON.error);
-        } else if (err && err.message) {
-          errMsg = err.message;
-        }
-        showMergeAlert(errMsg, 'error');
-        if (elements.btnConfirmMerge) elements.btnConfirmMerge.disabled = false;
-        if (elements.mergeBtnText) elements.mergeBtnText.textContent = 'Confirm and Merge';
-        if (elements.mergeBtnSpinner) elements.mergeBtnSpinner.classList.add('hidden');
+    if (pendingTickets.length > 0) {
+      Promise.all(pendingTickets.map(t => fetchTicketLatestComment(t.id))).then(() => {
+        proceedWithMerge();
+      }).catch(() => {
+        proceedWithMerge();
       });
     } else {
-      // Local development preview fallback
-      setTimeout(() => {
-        showToast(`[Preview] Merged ${closingIds.length} ticket(s) into #${targetId}!`);
-        closeMergeModal();
-        if (state.mergeState.customer) {
-          state.mergeState.customer.tickets = state.mergeState.customer.tickets.filter(t => !closingIds.includes(t.id));
-        }
-        if (state.rawViewTickets && state.rawViewTickets.length > 0) {
-          state.rawViewTickets = state.rawViewTickets.filter(t => !closingIds.includes(t.id));
-          state.filteredViewTickets = state.filteredViewTickets.filter(t => !closingIds.includes(t.id));
-          state.selectedViewTicketIds.clear();
-          updateViewBulkActionBar();
-          renderViewTicketsTable();
-        }
-        renderDuplicateResults();
-      }, 600);
+      proceedWithMerge();
     }
   }
 
