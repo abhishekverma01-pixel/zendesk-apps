@@ -1434,8 +1434,19 @@ html, body {
   animation: fadeIn 0.15s ease-out;
 }
 
+.modal-dialog {
+  background: #ffffff !important;
+  border-radius: 8px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28), 0 0 1px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.18s ease-out;
+  border: 1px solid #cfd7df;
+}
+
 .merge-modal-dialog {
-  background: #ffffff;
+  background: #ffffff !important;
   width: 92%;
   max-width: 620px;
   max-height: 88vh;
@@ -1496,6 +1507,7 @@ html, body {
 }
 
 .modal-body {
+  background: #ffffff !important;
   padding: 16px 20px;
   overflow-y: auto;
   flex: 1;
@@ -2315,7 +2327,23 @@ html, body {
 
 /* Delete Modal Dialog */
 .delete-modal-dialog {
+  width: 90%;
   max-width: 480px;
+  background: #ffffff !important;
+  border-radius: 8px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+  border: 1px solid #cfd7df;
+  overflow: hidden;
+}
+
+.alert-danger {
+  background: #fff0f1;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  color: #8c232c;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .delete-tickets-list {
