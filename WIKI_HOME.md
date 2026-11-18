@@ -96,8 +96,8 @@ Agents can click **⚡ Filter** to open an interactive drawer with 9 simultaneou
 * **Native Search & Merge Dialog:**
   * **Candidate Selection:** Pre-loads all open tickets for the requester as selectable target candidates.
   * **Multi-Attribute Search:** Search target tickets by **Ticket ID, Requester Email, Requester Name, or Subject** with real-time local filtering and global Zendesk API fallback.
-  * **Ignorable Cross-Organization Alert:** When candidate and closing tickets have differing requesters or organizations, the exact native alert displays:
-    > ⚠️ **These tickets don't belong to the same organization**
+  * **Ignorable Customer Mismatch Alert:** When candidate and closing tickets have differing requesters or organizations, the exact alert displays:
+    > ⚠️ **These tickets don't belong to the same customer**
     *Crucially, this alert is non-blocking (ignorable)*—agents can review the notice, dismiss it, and proceed with the merge if desired.
   * **Comment Customization:** Auto-generates standard Zendesk target and source merge comments, with a toggle for public vs internal visibility.
   * **Execution:** Calls Zendesk REST API `POST /api/v2/tickets/{target_id}/merge.json` and refreshes the queue dynamically.
@@ -166,6 +166,6 @@ This generates `dist/zendesk-view-descriptions-app.zip` containing all validated
 * [x] Duplicate Customer Ticket Queue
 * [x] Interactive Checkboxes & Dynamic Merge Action
 * [x] Zendesk-Native Search & Merge Dialog (ID, Name, Email)
-* [x] Ignorable Cross-Organization Mismatch Alert
+* [x] Ignorable Customer Mismatch Alert
 * [ ] AI-Powered Ticket Similarity Scoring
 * [ ] Automated Macro Suggestions Based on Hover Description

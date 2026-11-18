@@ -76,7 +76,7 @@ Customers often submit multiple tickets (via email, web forms, or chat) for the 
 4. **Search & Select Target Ticket:**
    * **Search by Email, Name, Ticket ID, or Subject:** You can search the target ticket using the customer's email address, requester name, ticket number, or keywords.
    * You can select from the customer's duplicate list or search all Zendesk tickets live.
-   * **Organization / Requester Mismatch Warning (Ignorable):** If the selected target ticket belongs to a different requester or organization, a warning appears: *"These tickets don't belong to the same organization"*. **This warning is completely ignorable**—it does not block you, and you can still proceed and click Confirm and Merge!
+   * **Customer Mismatch Warning (Ignorable):** If the selected target ticket belongs to a different customer, a warning appears: *"These tickets don't belong to the same customer"*. **This warning is completely ignorable**—it does not block you, and you can still proceed and click Confirm and Merge!
 5. **Review Comments & Confirm:**
    * Review or customize the notes added to the target ticket and closing tickets.
    * Click **Confirm and Merge**: The app executes the merge directly in Zendesk and updates the queue immediately.
@@ -92,5 +92,5 @@ Customers often submit multiple tickets (via email, web forms, or chat) for the 
 | **Find tickets with a specific tag or keyword** | Click **⚡ Filter**, type in the *Subject* or *Tags* box. |
 | **Select duplicate customer tickets** | In **Duplicate tickets**, tick the checkboxes in front of the tickets you want to merge. |
 | **Search target ticket by name or email** | In the Merge dialog, type the requester's name, email, ticket #, or subject in the search box. |
-| **Merge tickets across different orgs** | Select the target ticket; if *"These tickets don't belong to the same organization"* appears, ignore it and click **Confirm and Merge**. |
+| **Merge tickets across different customers** | Select the target ticket; if *"These tickets don't belong to the same customer"* appears, ignore it and click **Confirm and Merge**. |
 | **Clear all active filters** | Click **Reset All Filters** inside the filter drawer. |

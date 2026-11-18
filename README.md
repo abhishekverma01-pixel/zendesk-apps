@@ -8,7 +8,7 @@
 A production-grade **Zendesk Support Navigation App (ZAF v2)** engineered to solve the most common bottlenecks support teams face in daily ticket operations:
 1. **Instant Ticket Hover Previews**: Read initial problem descriptions without opening dozens of browser tabs.
 2. **9-Field Real-Time Filtering**: Advanced filter drawer allowing agents to slice any view by subject, multi-tags, status, priority, channel, ticket type, requester, assignee, and calendar date presets (e.g. *Last 30 Days*, *In 2026*).
-3. **Automated Duplicate Detection & Native Merge Dialog**: Automatically scans open queues for customers with multiple open tickets, provides ticket selection checkboxes, dynamic `Merge` action, and a full Zendesk-style Search & Merge modal (supporting search by **ticket ID, requester email, or customer name** with an ignorable cross-organization alert).
+3. **Automated Duplicate Detection & Native Merge Dialog**: Automatically scans open queues for customers with multiple open tickets, provides ticket selection checkboxes, dynamic `Merge` action, and a full Zendesk-style Search & Merge modal (supporting search by **ticket ID, requester email, or customer name** with an ignorable customer mismatch alert).
 
 ---
 
@@ -36,7 +36,7 @@ A production-grade **Zendesk Support Navigation App (ZAF v2)** engineered to sol
 - **Zendesk-Style Search & Merge Dialog:**
   - **Live Search:** Search candidate tickets by **Ticket ID, Requester Email, Requester Name, or Subject**.
   - **Cross-Zendesk Search:** One-click live lookup across all tickets in the Zendesk account.
-  - **Ignorable Warning Alert:** Displays `⚠️ These tickets don't belong to the same organization` when tickets have different requesters/orgs, while keeping the merge action completely unblocked and ignorable.
+  - **Ignorable Warning Alert:** Displays `⚠️ These tickets don't belong to the same customer` when tickets have different requesters/orgs, while keeping the merge action completely unblocked and ignorable.
   - **Comment Customization:** Pre-fills target and closing comments with public/internal visibility toggle.
   - **Direct REST API Execution:** Calls `POST /api/v2/tickets/{target_id}/merge.json` directly through the ZAF SDK and auto-refreshes the duplicate queue.
 
