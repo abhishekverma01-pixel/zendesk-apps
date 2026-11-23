@@ -2705,7 +2705,7 @@ html, body {
 }
 
 .edit-macro-list {
-  max-height: 175px;
+  max-height: 220px;
   overflow-y: auto;
   border: 1px solid #d8dcde;
   border-radius: 6px;
@@ -2720,14 +2720,42 @@ html, body {
   color: #68737d;
 }
 
+.edit-macro-back-row {
+  padding: 8px 14px;
+  border-bottom: 1px solid #e9ebed;
+  background: #f8f9f9;
+}
+
+.edit-macro-back-btn {
+  background: transparent;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1f73b7;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.edit-macro-back-btn:hover {
+  background: #edf0f2;
+}
+
 .edit-macro-item {
-  padding: 8px 12px;
+  padding: 10px 16px;
   border-bottom: 1px solid #f1f3f4;
   cursor: pointer;
   transition: background 0.12s;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13.5px;
+  color: #2f3941;
+  font-weight: 400;
+  min-height: 40px;
 }
 
 .edit-macro-item:last-child {
@@ -2735,42 +2763,42 @@ html, body {
 }
 
 .edit-macro-item:hover {
-  background: #f1f7fb;
+  background: #f8f9fa;
 }
 
 .edit-macro-item.selected {
-  background: #eaf3fa;
-  border-left: 3px solid #1f73b7;
-}
-
-.edit-macro-category {
-  font-size: 10px;
-  color: #87929d;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.edit-macro-title {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: #2f3941;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.edit-macro-desc {
-  font-size: 11px;
-  color: #68737d;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.edit-macro-actions-hint {
-  font-size: 10px;
+  background: #edf7ff;
   color: #1f73b7;
+  font-weight: 600;
+}
+
+.edit-macro-item-title {
+  font-size: 13.5px;
+  color: inherit;
+  flex: 1;
+}
+
+.edit-macro-chevron {
+  color: #68737d;
+  flex-shrink: 0;
+  transition: transform 0.12s, color 0.12s;
+}
+
+.edit-macro-group-item:hover .edit-macro-chevron {
+  color: #2f3941;
+  transform: translateX(2px);
+}
+
+.edit-macro-selected-check {
+  color: #038153;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.edit-macro-search-match-path {
+  font-size: 10.5px;
+  color: #87929d;
+  display: block;
   margin-top: 2px;
 }
 

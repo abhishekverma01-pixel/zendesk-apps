@@ -3063,50 +3063,67 @@
     state.macrosLoading = true;
 
     if (!state.client) {
-      // Realistic mock macros for preview mode
+      // Realistic mock macros for preview mode (matching native Zendesk group hierarchy)
       state.macros = [
         {
           id: 101,
-          title: "General::Thank you & Close (Solved)",
-          description: "Sends a closing response and sets ticket status to Solved.",
+          title: "Cancel return Request",
+          description: "Cancels the return request as per customer confirmation.",
           actions: [
             { field: "comment_mode_is_public", value: "true" },
-            { field: "comment_value", value: "Thank you for reaching out to us. We have resolved your issue and are marking this ticket as Solved. Please reply to this email if you need any further assistance!" },
-            { field: "status", value: "solved" },
-            { field: "current_tags", value: "resolved_by_macro customer_satisfied" }
+            { field: "comment_value_html", value: "<p>Your return request has been canceled as requested. Please let us know if you need anything else!</p>" },
+            { field: "status", value: "solved" }
           ]
         },
         {
           id: 102,
-          title: "Support::Awaiting Customer Response (Pending)",
-          description: "Requests more details and sets ticket status to Pending.",
+          title: "CSAT::Customer Satisfied",
+          description: "Customer gave positive rating, close ticket.",
           actions: [
             { field: "comment_mode_is_public", value: "true" },
-            { field: "comment_value", value: "Hi there,\n\nCould you please provide more details or screenshots regarding this issue so we can investigate further?\n\nThanks!" },
-            { field: "status", value: "pending" },
-            { field: "current_tags", value: "waiting_on_customer" }
+            { field: "comment_value_html", value: "<p>Thank you for your wonderful feedback! We are closing this ticket.</p>" },
+            { field: "status", value: "solved" },
+            { field: "current_tags", value: "csat_good" }
           ]
         },
         {
           id: 103,
-          title: "Internal::Escalate to Tier 2",
-          description: "Adds an internal note for engineers and marks ticket high priority.",
+          title: "CSAT::Needs Follow-up",
+          description: "Customer had concerns, request supervisor follow-up.",
           actions: [
             { field: "comment_mode_is_public", value: "false" },
-            { field: "comment_value", value: "Issue escalated to engineering team for bug inspection. Logs attached." },
-            { field: "priority", value: "high" },
-            { field: "current_tags", value: "escalated_engineering tier_2" }
+            { field: "comment_value_html", value: "<p>Customer CSAT requires supervisor follow-up.</p>" },
+            { field: "priority", value: "high" }
           ]
         },
         {
           id: 104,
-          title: "Billing::Refund Processed",
-          description: "Notifies customer that refund has been issued.",
+          title: "Customer not responding",
+          description: "Close ticket due to inactivity after multiple follow-ups.",
           actions: [
             { field: "comment_mode_is_public", value: "true" },
-            { field: "comment_value", value: "Your refund request has been processed successfully. It should reflect in your account within 3-5 business days." },
+            { field: "comment_value_html", value: "<p>Since we haven't heard back from you, we are solving this ticket for now. Feel free to reply anytime to reopen!</p>" },
             { field: "status", value: "solved" },
-            { field: "current_tags", value: "refund_processed finance" }
+            { field: "current_tags", value: "solved_no_response" }
+          ]
+        },
+        {
+          id: 105,
+          title: "Downgrade and inform",
+          description: "Downgrade account tier and notify customer.",
+          actions: [
+            { field: "comment_mode_is_public", value: "true" },
+            { field: "comment_value_html", value: "<p>Your account tier has been downgraded as requested.</p>" },
+            { field: "status", value: "open" }
+          ]
+        },
+        {
+          id: 106,
+          title: "Urgent",
+          description: "Mark ticket urgent priority and escalate.",
+          actions: [
+            { field: "priority", value: "urgent" },
+            { field: "current_tags", value: "escalated_urgent" }
           ]
         }
       ];
@@ -3141,6 +3158,7 @@
       selectedMacro: null,
       evaluatedPayload: null,
       macroSearchQuery: '',
+      categoryPath: [],
       isSubmitting: false
     };
 
@@ -3188,6 +3206,8 @@
     hideEditAlert();
     state.editState.selectedMacro = null;
     state.editState.evaluatedPayload = null;
+    state.editState.categoryPath = [];
+    state.editState.macroSearchQuery = '';
     if (elements.btnConfirmApplyMacro) elements.btnConfirmApplyMacro.disabled = false;
     if (elements.editBtnText) elements.editBtnText.textContent = 'Apply to Tickets';
     if (elements.editBtnSpinner) elements.editBtnSpinner.classList.add('hidden');
@@ -3210,49 +3230,144 @@
   function renderMacroList(macros) {
     if (!elements.editMacroList) return;
     const q = (state.editState.macroSearchQuery || '').toLowerCase().trim();
+    const allMacros = macros || [];
 
-    let filtered = macros || [];
     if (q) {
-      filtered = filtered.filter(m => {
+      // 1. Search Mode: Flatten and search across all macros
+      const filtered = allMacros.filter(m => {
         const titleMatch = (m.title || '').toLowerCase().includes(q);
         const descMatch = (m.description || '').toLowerCase().includes(q);
         return titleMatch || descMatch;
       });
-    }
 
-    if (filtered.length === 0) {
-      elements.editMacroList.innerHTML = `<div class="edit-macro-empty">${q ? 'No macros found matching "' + escapeHtml(q) + '"' : 'No active macros found.'}</div>`;
+      if (filtered.length === 0) {
+        elements.editMacroList.innerHTML = `<div class="edit-macro-empty">No macros found matching "${escapeHtml(q)}"</div>`;
+        return;
+      }
+
+      elements.editMacroList.innerHTML = filtered.map(m => {
+        const isSelected = state.editState.selectedMacro && (state.editState.selectedMacro.id === m.id);
+        const parts = (m.title || '').split('::').map(s => s.trim());
+        const hasCategory = parts.length > 1;
+        const leafTitle = parts[parts.length - 1];
+        const categoryBreadcrumb = hasCategory ? parts.slice(0, -1).join(' › ') : '';
+
+        return `
+          <div class="edit-macro-item ${isSelected ? 'selected' : ''}" data-macro-id="${m.id}">
+            <div>
+              <span class="edit-macro-item-title">${escapeHtml(leafTitle)}</span>
+              ${categoryBreadcrumb ? `<span class="edit-macro-search-match-path">${escapeHtml(categoryBreadcrumb)}</span>` : ''}
+            </div>
+            ${isSelected ? '<span class="edit-macro-selected-check">✓</span>' : ''}
+          </div>
+        `;
+      }).join('');
       return;
     }
 
-    elements.editMacroList.innerHTML = filtered.map(m => {
-      const isSelected = state.editState.selectedMacro && (state.editState.selectedMacro.id === m.id);
-      const parts = (m.title || '').split('::');
-      const category = parts.length > 1 ? parts.slice(0, -1).join(' › ') : '';
-      const leafTitle = parts[parts.length - 1];
+    // 2. Hierarchical Group Mode (Zendesk Native):
+    const currentPath = state.editState.categoryPath || [];
+    const currentDepth = currentPath.length;
 
-      // Summarize actions
-      const actions = m.actions || [];
-      const statusAction = actions.find(a => a.field === 'status');
-      const commentAction = actions.find(a => a.field && a.field.startsWith('comment'));
-      const isPublic = actions.find(a => a.field === 'comment_mode_is_public' && String(a.value) === 'true');
+    // Separate into category groups and leaf macros at currentDepth
+    const groupsSet = new Set();
+    const leafMacros = [];
 
-      const hints = [];
-      if (commentAction) hints.push(isPublic ? 'Public Reply' : 'Internal Note');
-      if (statusAction) hints.push(`Status: ${statusAction.value}`);
+    allMacros.forEach(m => {
+      const parts = (m.title || '').split('::').map(s => s.trim()).filter(Boolean);
 
-      return `
-        <div class="edit-macro-item ${isSelected ? 'selected' : ''}" data-macro-id="${m.id}">
-          ${category ? `<div class="edit-macro-category">${escapeHtml(category)}</div>` : ''}
-          <div class="edit-macro-title">
-            <span>${escapeHtml(leafTitle)}</span>
-            ${isSelected ? '<span style="color:#038153; font-weight:700;">✓</span>' : ''}
-          </div>
-          ${m.description ? `<div class="edit-macro-desc" title="${escapeHtml(m.description)}">${escapeHtml(m.description)}</div>` : ''}
-          ${hints.length > 0 ? `<div class="edit-macro-actions-hint">${hints.join(' • ')}</div>` : ''}
+      // Check if this macro is within currentPath
+      let isUnderCurrent = true;
+      for (let i = 0; i < currentDepth; i++) {
+        if (parts[i] !== currentPath[i]) {
+          isUnderCurrent = false;
+          break;
+        }
+      }
+
+      if (!isUnderCurrent) return;
+
+      if (parts.length > currentDepth + 1) {
+        // Has a sub-category at this depth
+        groupsSet.add(parts[currentDepth]);
+      } else if (parts.length === currentDepth + 1) {
+        // Leaf macro at this depth
+        leafMacros.push({
+          leafTitle: parts[currentDepth],
+          macro: m
+        });
+      }
+    });
+
+    // Combine groups and leaf macros and sort alphabetically like native Zendesk
+    const combinedEntries = [];
+
+    groupsSet.forEach(groupName => {
+      combinedEntries.push({
+        type: 'group',
+        name: groupName,
+        sortKey: groupName.toLowerCase()
+      });
+    });
+
+    leafMacros.forEach(item => {
+      combinedEntries.push({
+        type: 'macro',
+        name: item.leafTitle,
+        sortKey: item.leafTitle.toLowerCase(),
+        macro: item.macro
+      });
+    });
+
+    combinedEntries.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+    if (combinedEntries.length === 0 && currentPath.length === 0) {
+      elements.editMacroList.innerHTML = '<div class="edit-macro-empty">No active macros found.</div>';
+      return;
+    }
+
+    let html = '';
+
+    // If navigated into a group, show a back button row at top
+    if (currentDepth > 0) {
+      const currentCategoryName = currentPath[currentPath.length - 1];
+      html += `
+        <div class="edit-macro-back-row">
+          <button type="button" class="edit-macro-back-btn" title="Back to parent">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            <span>Back (${escapeHtml(currentCategoryName)})</span>
+          </button>
         </div>
       `;
+    }
+
+    html += combinedEntries.map(entry => {
+      if (entry.type === 'group') {
+        // Group row with right chevron '>' (matching user image!)
+        return `
+          <div class="edit-macro-item edit-macro-group-item" data-category="${escapeHtml(entry.name)}">
+            <span class="edit-macro-item-title">${escapeHtml(entry.name)}</span>
+            <svg class="edit-macro-chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
+        `;
+      } else {
+        // Leaf macro item
+        const m = entry.macro;
+        const isSelected = state.editState.selectedMacro && (state.editState.selectedMacro.id === m.id);
+        return `
+          <div class="edit-macro-item ${isSelected ? 'selected' : ''}" data-macro-id="${m.id}">
+            <span class="edit-macro-item-title">${escapeHtml(entry.name)}</span>
+            ${isSelected ? '<span class="edit-macro-selected-check">✓</span>' : ''}
+          </div>
+        `;
+      }
     }).join('');
+
+    elements.editMacroList.innerHTML = html;
   }
 
   function selectMacro(macro) {
@@ -4204,6 +4319,7 @@
       if (e.target.closest('#btn-clear-macro-search')) {
         if (elements.editMacroSearch) elements.editMacroSearch.value = '';
         state.editState.macroSearchQuery = '';
+        state.editState.categoryPath = [];
         if (elements.btnClearMacroSearch) elements.btnClearMacroSearch.classList.add('hidden');
         renderMacroList(state.macros);
         return;
@@ -4222,6 +4338,26 @@
       // Toggle Macro Comment Privacy (Public reply vs Internal note)
       if (e.target.closest('#edit-comment-privacy-pill')) {
         updateEditCommentPrivacyBadge(!state.editState.commentIsPublic);
+        return;
+      }
+
+      // Click on Back Button inside Macro Category Group
+      if (e.target.closest('.edit-macro-back-btn')) {
+        state.editState.categoryPath = state.editState.categoryPath || [];
+        state.editState.categoryPath.pop();
+        renderMacroList(state.macros);
+        return;
+      }
+
+      // Click on Macro Category Group (Drill Down)
+      const groupItem = e.target.closest('.edit-macro-group-item');
+      if (groupItem) {
+        const cat = groupItem.getAttribute('data-category');
+        if (cat) {
+          state.editState.categoryPath = state.editState.categoryPath || [];
+          state.editState.categoryPath.push(cat);
+          renderMacroList(state.macros);
+        }
         return;
       }
 
