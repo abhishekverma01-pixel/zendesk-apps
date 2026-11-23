@@ -67,6 +67,18 @@
       isSubmitting: false,
       sourceCommentIsPublic: false,
       targetCommentIsPublic: false
+    },
+
+    // Macros & Bulk Edit State
+    macros: [],
+    macrosLoading: false,
+    editState: {
+      selectedTicketIds: [],
+      selectedTickets: [],
+      selectedMacro: null,
+      evaluatedPayload: null,
+      macroSearchQuery: '',
+      isSubmitting: false
     }
   };
 
@@ -117,6 +129,8 @@
     viewSelectAllTickets: document.getElementById('view-select-all-tickets'),
     viewBulkActions: document.getElementById('view-bulk-actions'),
     viewBulkCount: document.getElementById('view-bulk-count'),
+    btnViewBulkEdit: document.getElementById('btn-view-bulk-edit'),
+    viewEditCount: document.getElementById('view-edit-count'),
     btnViewBulkMerge: document.getElementById('btn-view-bulk-merge'),
     btnViewBulkDelete: document.getElementById('btn-view-bulk-delete'),
     viewMergeCount: document.getElementById('view-merge-count'),
@@ -187,6 +201,29 @@
     btnLinkActionOpen: document.getElementById('btn-link-action-open'),
     btnLinkActionEdit: document.getElementById('btn-link-action-edit'),
     btnLinkActionUnlink: document.getElementById('btn-link-action-unlink'),
+
+    // Bulk Edit / Macro Modal
+    editModal: document.getElementById('edit-modal'),
+    editModalTitle: document.getElementById('edit-modal-title'),
+    editModalTicketCount: document.getElementById('edit-modal-ticket-count'),
+    btnCloseEditModal: document.getElementById('btn-close-edit-modal'),
+    btnCancelEdit: document.getElementById('btn-cancel-edit'),
+    btnConfirmApplyMacro: document.getElementById('btn-confirm-apply-macro'),
+    editBtnText: document.getElementById('edit-btn-text'),
+    editBtnSpinner: document.getElementById('edit-btn-spinner'),
+    editTicketsChips: document.getElementById('edit-tickets-chips'),
+    editMacroSearch: document.getElementById('edit-macro-search'),
+    btnClearMacroSearch: document.getElementById('btn-clear-macro-search'),
+    editMacroList: document.getElementById('edit-macro-list'),
+    editMacroStatusText: document.getElementById('edit-macro-status-text'),
+    editMacroPreviewWrap: document.getElementById('edit-macro-preview-wrap'),
+    editPreviewMacroName: document.getElementById('edit-preview-macro-name'),
+    btnClearSelectedMacro: document.getElementById('btn-clear-selected-macro'),
+    editPreviewBadges: document.getElementById('edit-preview-badges'),
+    editPreviewCommentGroup: document.getElementById('edit-preview-comment-group'),
+    editCommentPrivacyPill: document.getElementById('edit-comment-privacy-pill'),
+    editPreviewCommentBody: document.getElementById('edit-preview-comment-body'),
+    editModalAlert: document.getElementById('edit-modal-alert'),
 
     // Bulk Delete Modal Elements
     deleteModal: document.getElementById('delete-modal'),
@@ -1106,6 +1143,7 @@
       if (count > 0) {
         elements.viewBulkActions.classList.remove('hidden');
         if (elements.viewBulkCount) elements.viewBulkCount.textContent = `${count} selected`;
+        if (elements.viewEditCount) elements.viewEditCount.textContent = count;
         if (elements.viewMergeCount) elements.viewMergeCount.textContent = count;
         if (elements.viewDeleteCount) elements.viewDeleteCount.textContent = count;
       } else {
@@ -3003,6 +3041,487 @@
   }
 
   // ==========================================
+  // BULK EDIT / MACROS TICKETS MODAL & ACTION
+  // ==========================================
+
+  function fetchActiveMacros() {
+    if (state.macros && state.macros.length > 0) {
+      return Promise.resolve(state.macros);
+    }
+
+    if (state.macrosLoading) {
+      return new Promise(resolve => {
+        const interval = setInterval(() => {
+          if (!state.macrosLoading) {
+            clearInterval(interval);
+            resolve(state.macros || []);
+          }
+        }, 80);
+      });
+    }
+
+    state.macrosLoading = true;
+
+    if (!state.client) {
+      // Realistic mock macros for preview mode
+      state.macros = [
+        {
+          id: 101,
+          title: "General::Thank you & Close (Solved)",
+          description: "Sends a closing response and sets ticket status to Solved.",
+          actions: [
+            { field: "comment_mode_is_public", value: "true" },
+            { field: "comment_value", value: "Thank you for reaching out to us. We have resolved your issue and are marking this ticket as Solved. Please reply to this email if you need any further assistance!" },
+            { field: "status", value: "solved" },
+            { field: "current_tags", value: "resolved_by_macro customer_satisfied" }
+          ]
+        },
+        {
+          id: 102,
+          title: "Support::Awaiting Customer Response (Pending)",
+          description: "Requests more details and sets ticket status to Pending.",
+          actions: [
+            { field: "comment_mode_is_public", value: "true" },
+            { field: "comment_value", value: "Hi there,\n\nCould you please provide more details or screenshots regarding this issue so we can investigate further?\n\nThanks!" },
+            { field: "status", value: "pending" },
+            { field: "current_tags", value: "waiting_on_customer" }
+          ]
+        },
+        {
+          id: 103,
+          title: "Internal::Escalate to Tier 2",
+          description: "Adds an internal note for engineers and marks ticket high priority.",
+          actions: [
+            { field: "comment_mode_is_public", value: "false" },
+            { field: "comment_value", value: "Issue escalated to engineering team for bug inspection. Logs attached." },
+            { field: "priority", value: "high" },
+            { field: "current_tags", value: "escalated_engineering tier_2" }
+          ]
+        },
+        {
+          id: 104,
+          title: "Billing::Refund Processed",
+          description: "Notifies customer that refund has been issued.",
+          actions: [
+            { field: "comment_mode_is_public", value: "true" },
+            { field: "comment_value", value: "Your refund request has been processed successfully. It should reflect in your account within 3-5 business days." },
+            { field: "status", value: "solved" },
+            { field: "current_tags", value: "refund_processed finance" }
+          ]
+        }
+      ];
+      state.macrosLoading = false;
+      return Promise.resolve(state.macros);
+    }
+
+    return state.client.request({
+      url: '/api/v2/macros/active.json?per_page=100',
+      type: 'GET',
+      dataType: 'json'
+    }).then(res => {
+      state.macros = (res && res.macros) || [];
+      state.macrosLoading = false;
+      return state.macros;
+    }).catch(err => {
+      console.warn('Failed to fetch macros:', err);
+      state.macrosLoading = false;
+      return [];
+    });
+  }
+
+  function openEditModal() {
+    const selectedIds = Array.from(state.selectedViewTicketIds);
+    if (selectedIds.length === 0) return;
+
+    const selectedTickets = (state.rawViewTickets || []).filter(t => selectedIds.includes(t.id));
+
+    state.editState = {
+      selectedTicketIds: selectedIds,
+      selectedTickets: selectedTickets,
+      selectedMacro: null,
+      evaluatedPayload: null,
+      macroSearchQuery: '',
+      isSubmitting: false
+    };
+
+    if (elements.editModalTicketCount) {
+      elements.editModalTicketCount.textContent = selectedIds.length;
+    }
+
+    if (elements.editTicketsChips) {
+      elements.editTicketsChips.innerHTML = selectedTickets.map(t => `
+        <span class="edit-ticket-chip" title="${escapeHtml(t.subject || '')}">
+          #${t.id} <span class="chip-status">${escapeHtml(t.status || 'open')}</span>
+        </span>
+      `).join('');
+    }
+
+    if (elements.editMacroSearch) elements.editMacroSearch.value = '';
+    if (elements.btnClearMacroSearch) elements.btnClearMacroSearch.classList.add('hidden');
+    if (elements.editMacroPreviewWrap) elements.editMacroPreviewWrap.classList.add('hidden');
+    if (elements.editMacroStatusText) elements.editMacroStatusText.textContent = 'Select a macro below';
+    if (elements.btnConfirmApplyMacro) {
+      elements.btnConfirmApplyMacro.disabled = true;
+      if (elements.editBtnText) elements.editBtnText.textContent = 'Apply to Tickets';
+      if (elements.editBtnSpinner) elements.editBtnSpinner.classList.add('hidden');
+    }
+    hideEditAlert();
+
+    if (elements.editMacroList) {
+      elements.editMacroList.innerHTML = '<div class="edit-macro-empty">Loading active macros...</div>';
+    }
+
+    if (elements.editModal) {
+      elements.editModal.classList.remove('hidden');
+    }
+
+    fetchActiveMacros().then(macros => {
+      renderMacroList(macros);
+      if (elements.editMacroSearch) elements.editMacroSearch.focus();
+    });
+  }
+
+  function closeEditModal() {
+    if (elements.editModal) {
+      elements.editModal.classList.add('hidden');
+    }
+    hideEditAlert();
+    state.editState.selectedMacro = null;
+    state.editState.evaluatedPayload = null;
+    if (elements.btnConfirmApplyMacro) elements.btnConfirmApplyMacro.disabled = false;
+    if (elements.editBtnText) elements.editBtnText.textContent = 'Apply to Tickets';
+    if (elements.editBtnSpinner) elements.editBtnSpinner.classList.add('hidden');
+  }
+
+  function showEditAlert(msg) {
+    if (elements.editModalAlert) {
+      elements.editModalAlert.textContent = msg;
+      elements.editModalAlert.classList.remove('hidden');
+    }
+  }
+
+  function hideEditAlert() {
+    if (elements.editModalAlert) {
+      elements.editModalAlert.classList.add('hidden');
+      elements.editModalAlert.textContent = '';
+    }
+  }
+
+  function renderMacroList(macros) {
+    if (!elements.editMacroList) return;
+    const q = (state.editState.macroSearchQuery || '').toLowerCase().trim();
+
+    let filtered = macros || [];
+    if (q) {
+      filtered = filtered.filter(m => {
+        const titleMatch = (m.title || '').toLowerCase().includes(q);
+        const descMatch = (m.description || '').toLowerCase().includes(q);
+        return titleMatch || descMatch;
+      });
+    }
+
+    if (filtered.length === 0) {
+      elements.editMacroList.innerHTML = `<div class="edit-macro-empty">${q ? 'No macros found matching "' + escapeHtml(q) + '"' : 'No active macros found.'}</div>`;
+      return;
+    }
+
+    elements.editMacroList.innerHTML = filtered.map(m => {
+      const isSelected = state.editState.selectedMacro && (state.editState.selectedMacro.id === m.id);
+      const parts = (m.title || '').split('::');
+      const category = parts.length > 1 ? parts.slice(0, -1).join(' › ') : '';
+      const leafTitle = parts[parts.length - 1];
+
+      // Summarize actions
+      const actions = m.actions || [];
+      const statusAction = actions.find(a => a.field === 'status');
+      const commentAction = actions.find(a => a.field && a.field.startsWith('comment'));
+      const isPublic = actions.find(a => a.field === 'comment_mode_is_public' && String(a.value) === 'true');
+
+      const hints = [];
+      if (commentAction) hints.push(isPublic ? 'Public Reply' : 'Internal Note');
+      if (statusAction) hints.push(`Status: ${statusAction.value}`);
+
+      return `
+        <div class="edit-macro-item ${isSelected ? 'selected' : ''}" data-macro-id="${m.id}">
+          ${category ? `<div class="edit-macro-category">${escapeHtml(category)}</div>` : ''}
+          <div class="edit-macro-title">
+            <span>${escapeHtml(leafTitle)}</span>
+            ${isSelected ? '<span style="color:#038153; font-weight:700;">✓</span>' : ''}
+          </div>
+          ${m.description ? `<div class="edit-macro-desc" title="${escapeHtml(m.description)}">${escapeHtml(m.description)}</div>` : ''}
+          ${hints.length > 0 ? `<div class="edit-macro-actions-hint">${hints.join(' • ')}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  function selectMacro(macro) {
+    if (!macro) return;
+    state.editState.selectedMacro = macro;
+
+    // Highlight item in list
+    const items = document.querySelectorAll('.edit-macro-item');
+    items.forEach(el => {
+      const id = parseInt(el.getAttribute('data-macro-id'), 10);
+      const isMatch = (id === macro.id);
+      el.classList.toggle('selected', isMatch);
+    });
+
+    if (elements.editMacroStatusText) {
+      elements.editMacroStatusText.textContent = `Selected: ${macro.title.replace(/::/g, ' › ')}`;
+    }
+
+    if (elements.editPreviewMacroName) {
+      elements.editPreviewMacroName.textContent = macro.title.replace(/::/g, ' › ');
+    }
+
+    if (elements.editMacroPreviewWrap) {
+      elements.editMacroPreviewWrap.classList.remove('hidden');
+    }
+
+    hideEditAlert();
+
+    const selectedIds = state.editState.selectedTicketIds || [];
+    const firstTicketId = selectedIds[0];
+
+    // Attempt to evaluate macro natively via Zendesk if connected
+    if (state.client && firstTicketId) {
+      state.client.request({
+        url: `/api/v2/tickets/${firstTicketId}/macros/${macro.id}/apply.json`,
+        type: 'GET',
+        dataType: 'json'
+      }).then(res => {
+        if (res && res.result && res.result.ticket) {
+          state.editState.evaluatedPayload = res.result.ticket;
+          renderMacroActionPreview(macro, res.result.ticket);
+        } else {
+          renderMacroActionPreview(macro, null);
+        }
+      }).catch(err => {
+        console.warn('Macro evaluation endpoint failed, using static actions:', err);
+        renderMacroActionPreview(macro, null);
+      });
+    } else {
+      renderMacroActionPreview(macro, null);
+    }
+
+    // Enable Apply button
+    if (elements.btnConfirmApplyMacro) {
+      elements.btnConfirmApplyMacro.disabled = false;
+      const count = selectedIds.length;
+      if (elements.editBtnText) {
+        elements.editBtnText.textContent = `Apply to ${count} Ticket${count === 1 ? '' : 's'}`;
+      }
+    }
+  }
+
+  function renderMacroActionPreview(macro, evaluatedTicket) {
+    const badgesContainer = elements.editPreviewBadges;
+    const commentGroup = elements.editPreviewCommentGroup;
+    const commentBody = elements.editPreviewCommentBody;
+    const privacyPill = elements.editCommentPrivacyPill;
+
+    const badges = [];
+    let commentText = '';
+    let isPublic = false;
+
+    if (evaluatedTicket) {
+      if (evaluatedTicket.status) {
+        badges.push(`<span class="preview-badge preview-badge-status">Status: ${escapeHtml(evaluatedTicket.status)}</span>`);
+      }
+      if (evaluatedTicket.priority) {
+        badges.push(`<span class="preview-badge preview-badge-priority">Priority: ${escapeHtml(evaluatedTicket.priority)}</span>`);
+      }
+      if (evaluatedTicket.tags && evaluatedTicket.tags.length > 0) {
+        badges.push(`<span class="preview-badge preview-badge-tag">Tags: ${escapeHtml(evaluatedTicket.tags.join(', '))}</span>`);
+      }
+      if (evaluatedTicket.comment) {
+        commentText = evaluatedTicket.comment.body || evaluatedTicket.comment.value || '';
+        isPublic = !!evaluatedTicket.comment.public;
+      }
+    } else {
+      // Fallback: parse raw macro actions
+      const actions = macro.actions || [];
+      const statusAct = actions.find(a => a.field === 'status');
+      const priorityAct = actions.find(a => a.field === 'priority');
+      const tagAct = actions.find(a => a.field === 'current_tags' || a.field === 'set_tags');
+      const publicAct = actions.find(a => a.field === 'comment_mode_is_public');
+      const commentAct = actions.find(a => a.field === 'comment_value' || a.field === 'comment_value_html');
+
+      if (statusAct) badges.push(`<span class="preview-badge preview-badge-status">Status: ${escapeHtml(statusAct.value)}</span>`);
+      if (priorityAct) badges.push(`<span class="preview-badge preview-badge-priority">Priority: ${escapeHtml(priorityAct.value)}</span>`);
+      if (tagAct) badges.push(`<span class="preview-badge preview-badge-tag">Tags: ${escapeHtml(tagAct.value)}</span>`);
+
+      if (publicAct) isPublic = (String(publicAct.value) === 'true');
+      if (commentAct) commentText = commentAct.value || '';
+    }
+
+    if (badgesContainer) {
+      badgesContainer.innerHTML = badges.join('');
+    }
+
+    if (commentGroup && commentBody) {
+      if (commentText && commentText.trim()) {
+        commentGroup.classList.remove('hidden');
+        commentBody.textContent = commentText.replace(/<[^>]*>?/gm, ''); // clean text
+        if (privacyPill) {
+          privacyPill.textContent = isPublic ? 'Public Reply' : 'Internal Note';
+          privacyPill.className = `badge ${isPublic ? 'badge-public' : 'badge-internal'}`;
+        }
+      } else {
+        commentGroup.classList.add('hidden');
+      }
+    }
+  }
+
+  function executeApplyMacro() {
+    const macro = state.editState.selectedMacro;
+    if (!macro) {
+      showEditAlert('Please select a macro to apply.');
+      return;
+    }
+
+    const selectedIds = state.editState.selectedTicketIds || [];
+    if (selectedIds.length === 0) {
+      closeEditModal();
+      return;
+    }
+
+    // Set Loading state
+    if (elements.btnConfirmApplyMacro) elements.btnConfirmApplyMacro.disabled = true;
+    if (elements.editBtnText) elements.editBtnText.textContent = 'Applying...';
+    if (elements.editBtnSpinner) elements.editBtnSpinner.classList.remove('hidden');
+    hideEditAlert();
+
+    // Construct update payload
+    let ticketPayload = {};
+
+    if (state.editState.evaluatedPayload) {
+      const evalTicket = state.editState.evaluatedPayload;
+      if (evalTicket.status) ticketPayload.status = evalTicket.status;
+      if (evalTicket.priority) ticketPayload.priority = evalTicket.priority;
+      if (evalTicket.tags) ticketPayload.additional_tags = evalTicket.tags;
+      if (evalTicket.assignee_id) ticketPayload.assignee_id = evalTicket.assignee_id;
+      if (evalTicket.group_id) ticketPayload.group_id = evalTicket.group_id;
+      if (evalTicket.comment) {
+        ticketPayload.comment = {
+          body: evalTicket.comment.body || evalTicket.comment.value || '',
+          public: !!evalTicket.comment.public
+        };
+      }
+    } else {
+      // Build from macro actions directly
+      const actions = macro.actions || [];
+      const statusAct = actions.find(a => a.field === 'status');
+      const priorityAct = actions.find(a => a.field === 'priority');
+      const tagAct = actions.find(a => a.field === 'current_tags' || a.field === 'set_tags');
+      const publicAct = actions.find(a => a.field === 'comment_mode_is_public');
+      const commentAct = actions.find(a => a.field === 'comment_value' || a.field === 'comment_value_html');
+      const assigneeAct = actions.find(a => a.field === 'assignee_id');
+      const groupAct = actions.find(a => a.field === 'group_id');
+
+      if (statusAct) ticketPayload.status = statusAct.value;
+      if (priorityAct) ticketPayload.priority = priorityAct.value;
+      if (tagAct) ticketPayload.additional_tags = tagAct.value.split(/\s+/).filter(Boolean);
+      if (assigneeAct && assigneeAct.value !== 'current_user') ticketPayload.assignee_id = assigneeAct.value;
+      if (groupAct) ticketPayload.group_id = groupAct.value;
+
+      if (commentAct) {
+        const isPublic = publicAct ? (String(publicAct.value) === 'true') : false;
+        ticketPayload.comment = {
+          body: (commentAct.value || '').replace(/<[^>]*>?/gm, ''),
+          public: isPublic
+        };
+      }
+    }
+
+    const macroTitle = macro.title.replace(/::/g, ' › ');
+
+    if (state.client) {
+      const updateUrl = (selectedIds.length === 1)
+        ? `/api/v2/tickets/${selectedIds[0]}.json`
+        : `/api/v2/tickets/update_many.json?ids=${selectedIds.join(',')}`;
+
+      state.client.request({
+        url: updateUrl,
+        type: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify({ ticket: ticketPayload })
+      }).then(() => {
+        showToast(`Successfully applied macro "${macroTitle}" to ${selectedIds.length} ticket(s)!`);
+        closeEditModal();
+
+        // Update in-memory ticket objects so table reflects changes immediately
+        if (state.rawViewTickets) {
+          state.rawViewTickets.forEach(t => {
+            if (selectedIds.includes(t.id)) {
+              if (ticketPayload.status) t.status = ticketPayload.status;
+              if (ticketPayload.priority) t.priority = ticketPayload.priority;
+              if (ticketPayload.additional_tags) {
+                t.tags = Array.from(new Set([...(t.tags || []), ...ticketPayload.additional_tags]));
+              }
+            }
+          });
+        }
+        if (state.filteredViewTickets) {
+          state.filteredViewTickets.forEach(t => {
+            if (selectedIds.includes(t.id)) {
+              if (ticketPayload.status) t.status = ticketPayload.status;
+              if (ticketPayload.priority) t.priority = ticketPayload.priority;
+              if (ticketPayload.additional_tags) {
+                t.tags = Array.from(new Set([...(t.tags || []), ...ticketPayload.additional_tags]));
+              }
+            }
+          });
+        }
+
+        state.selectedViewTicketIds.clear();
+        updateViewBulkActionBar();
+        renderViewTicketsTable();
+      }).catch(err => {
+        console.error('Failed to apply macro to tickets:', err);
+        let errMsg = 'Failed to apply macro to tickets.';
+        if (err && err.responseJSON && err.responseJSON.description) {
+          errMsg = err.responseJSON.description;
+        } else if (err && err.message) {
+          errMsg = err.message;
+        }
+        showEditAlert(errMsg);
+        if (elements.btnConfirmApplyMacro) elements.btnConfirmApplyMacro.disabled = false;
+        if (elements.editBtnText) elements.editBtnText.textContent = `Apply to ${selectedIds.length} Ticket${selectedIds.length === 1 ? '' : 's'}`;
+        if (elements.editBtnSpinner) elements.editBtnSpinner.classList.add('hidden');
+      });
+    } else {
+      // Local preview mode
+      setTimeout(() => {
+        showToast(`[Preview] Applied macro "${macroTitle}" to ${selectedIds.length} ticket(s)!`);
+        closeEditModal();
+
+        if (state.rawViewTickets) {
+          state.rawViewTickets.forEach(t => {
+            if (selectedIds.includes(t.id)) {
+              if (ticketPayload.status) t.status = ticketPayload.status;
+              if (ticketPayload.priority) t.priority = ticketPayload.priority;
+            }
+          });
+        }
+        if (state.filteredViewTickets) {
+          state.filteredViewTickets.forEach(t => {
+            if (selectedIds.includes(t.id)) {
+              if (ticketPayload.status) t.status = ticketPayload.status;
+              if (ticketPayload.priority) t.priority = ticketPayload.priority;
+            }
+          });
+        }
+
+        state.selectedViewTicketIds.clear();
+        updateViewBulkActionBar();
+        renderViewTicketsTable();
+      }, 500);
+    }
+  }
+
+  // ==========================================
   // BULK DELETE TICKETS MODAL & ACTION
   // ==========================================
 
@@ -3610,6 +4129,9 @@
           closeLinkPopover();
           return;
         }
+        if (elements.editModal && !elements.editModal.classList.contains('hidden')) {
+          closeEditModal();
+        }
         if (elements.mergeModal && !elements.mergeModal.classList.contains('hidden')) {
           closeMergeModal();
         }
@@ -3619,8 +4141,67 @@
       }
     });
 
+    // Macro Search Input Event
+    if (elements.editMacroSearch) {
+      elements.editMacroSearch.addEventListener('input', (e) => {
+        state.editState.macroSearchQuery = e.target.value || '';
+        if (elements.btnClearMacroSearch) {
+          elements.btnClearMacroSearch.classList.toggle('hidden', !state.editState.macroSearchQuery);
+        }
+        renderMacroList(state.macros);
+      });
+    }
+
     // 15. Delegate Clicks for ticket opening, merge flow, bulk actions, search, and show more
     document.addEventListener('click', (e) => {
+      // View Bulk Action: Edit / Apply Macro to Selected Tickets
+      if (e.target.closest('#btn-view-bulk-edit')) {
+        openEditModal();
+        return;
+      }
+
+      // Edit Modal Actions
+      if (e.target.closest('#btn-close-edit-modal') || e.target.closest('#btn-cancel-edit')) {
+        closeEditModal();
+        return;
+      }
+
+      if (e.target.closest('#btn-confirm-apply-macro')) {
+        executeApplyMacro();
+        return;
+      }
+
+      if (e.target.closest('#btn-clear-macro-search')) {
+        if (elements.editMacroSearch) elements.editMacroSearch.value = '';
+        state.editState.macroSearchQuery = '';
+        if (elements.btnClearMacroSearch) elements.btnClearMacroSearch.classList.add('hidden');
+        renderMacroList(state.macros);
+        return;
+      }
+
+      if (e.target.closest('#btn-clear-selected-macro')) {
+        state.editState.selectedMacro = null;
+        state.editState.evaluatedPayload = null;
+        if (elements.editMacroPreviewWrap) elements.editMacroPreviewWrap.classList.add('hidden');
+        if (elements.editMacroStatusText) elements.editMacroStatusText.textContent = 'Select a macro below';
+        if (elements.btnConfirmApplyMacro) elements.btnConfirmApplyMacro.disabled = true;
+        renderMacroList(state.macros);
+        return;
+      }
+
+      const macroItem = e.target.closest('.edit-macro-item');
+      if (macroItem) {
+        const id = parseInt(macroItem.getAttribute('data-macro-id'), 10);
+        const m = (state.macros || []).find(macro => macro.id === id);
+        if (m) selectMacro(m);
+        return;
+      }
+
+      if (e.target === elements.editModal) {
+        closeEditModal();
+        return;
+      }
+
       // View Bulk Action: Merge Selected Tickets
       if (e.target.closest('#btn-view-bulk-merge')) {
         const selectedIds = Array.from(state.selectedViewTicketIds);
