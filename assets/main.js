@@ -3315,15 +3315,28 @@
     }
   }
 
+  function updateEditCommentPrivacyBadge(isPublic) {
+    if (!elements.editCommentPrivacyPill) return;
+    state.editState.commentIsPublic = isPublic;
+    if (isPublic) {
+      elements.editCommentPrivacyPill.textContent = 'Public reply ▾';
+      elements.editCommentPrivacyPill.className = 'badge badge-public zd-privacy-toggle';
+      elements.editCommentPrivacyPill.title = 'Click to switch to Internal note';
+    } else {
+      elements.editCommentPrivacyPill.textContent = 'Internal note ▾';
+      elements.editCommentPrivacyPill.className = 'badge badge-internal zd-privacy-toggle';
+      elements.editCommentPrivacyPill.title = 'Click to switch to Public reply';
+    }
+  }
+
   function renderMacroActionPreview(macro, evaluatedTicket) {
     const badgesContainer = elements.editPreviewBadges;
     const commentGroup = elements.editPreviewCommentGroup;
     const commentBody = elements.editPreviewCommentBody;
-    const privacyPill = elements.editCommentPrivacyPill;
 
     const badges = [];
     let commentText = '';
-    let isPublic = false;
+    let isPublic = true; // In Zendesk, default to public reply for macro comments
 
     if (evaluatedTicket) {
       if (evaluatedTicket.status) {
@@ -3336,8 +3349,10 @@
         badges.push(`<span class="preview-badge preview-badge-tag">Tags: ${escapeHtml(evaluatedTicket.tags.join(', '))}</span>`);
       }
       if (evaluatedTicket.comment) {
-        commentText = evaluatedTicket.comment.body || evaluatedTicket.comment.value || '';
-        isPublic = !!evaluatedTicket.comment.public;
+        commentText = evaluatedTicket.comment.html_body || evaluatedTicket.comment.body || evaluatedTicket.comment.value || '';
+        if (typeof evaluatedTicket.comment.public === 'boolean') {
+          isPublic = evaluatedTicket.comment.public;
+        }
       }
     } else {
       // Fallback: parse raw macro actions
@@ -3346,15 +3361,27 @@
       const priorityAct = actions.find(a => a.field === 'priority');
       const tagAct = actions.find(a => a.field === 'current_tags' || a.field === 'set_tags');
       const publicAct = actions.find(a => a.field === 'comment_mode_is_public');
-      const commentAct = actions.find(a => a.field === 'comment_value' || a.field === 'comment_value_html');
+      const commentHtmlAct = actions.find(a => a.field === 'comment_value_html');
+      const commentPlainAct = actions.find(a => a.field === 'comment_value');
+      const commentAct = commentHtmlAct || commentPlainAct;
 
       if (statusAct) badges.push(`<span class="preview-badge preview-badge-status">Status: ${escapeHtml(statusAct.value)}</span>`);
       if (priorityAct) badges.push(`<span class="preview-badge preview-badge-priority">Priority: ${escapeHtml(priorityAct.value)}</span>`);
       if (tagAct) badges.push(`<span class="preview-badge preview-badge-tag">Tags: ${escapeHtml(tagAct.value)}</span>`);
 
-      if (publicAct) isPublic = (String(publicAct.value) === 'true');
-      if (commentAct) commentText = commentAct.value || '';
+      if (publicAct) {
+        isPublic = (String(publicAct.value) === 'true');
+      } else {
+        isPublic = true; // In Zendesk, default to public reply
+      }
+
+      if (commentAct) {
+        commentText = commentAct.value || '';
+      }
     }
+
+    state.editState.commentText = commentText;
+    state.editState.commentIsPublic = isPublic;
 
     if (badgesContainer) {
       badgesContainer.innerHTML = badges.join('');
@@ -3363,11 +3390,9 @@
     if (commentGroup && commentBody) {
       if (commentText && commentText.trim()) {
         commentGroup.classList.remove('hidden');
-        commentBody.textContent = commentText.replace(/<[^>]*>?/gm, ''); // clean text
-        if (privacyPill) {
-          privacyPill.textContent = isPublic ? 'Public Reply' : 'Internal Note';
-          privacyPill.className = `badge ${isPublic ? 'badge-public' : 'badge-internal'}`;
-        }
+        // Render rich HTML in the preview so user sees bold and formatting
+        commentBody.innerHTML = commentText;
+        updateEditCommentPrivacyBadge(isPublic);
       } else {
         commentGroup.classList.add('hidden');
       }
@@ -3403,20 +3428,12 @@
       if (evalTicket.tags) ticketPayload.additional_tags = evalTicket.tags;
       if (evalTicket.assignee_id) ticketPayload.assignee_id = evalTicket.assignee_id;
       if (evalTicket.group_id) ticketPayload.group_id = evalTicket.group_id;
-      if (evalTicket.comment) {
-        ticketPayload.comment = {
-          body: evalTicket.comment.body || evalTicket.comment.value || '',
-          public: !!evalTicket.comment.public
-        };
-      }
     } else {
       // Build from macro actions directly
       const actions = macro.actions || [];
       const statusAct = actions.find(a => a.field === 'status');
       const priorityAct = actions.find(a => a.field === 'priority');
       const tagAct = actions.find(a => a.field === 'current_tags' || a.field === 'set_tags');
-      const publicAct = actions.find(a => a.field === 'comment_mode_is_public');
-      const commentAct = actions.find(a => a.field === 'comment_value' || a.field === 'comment_value_html');
       const assigneeAct = actions.find(a => a.field === 'assignee_id');
       const groupAct = actions.find(a => a.field === 'group_id');
 
@@ -3425,13 +3442,26 @@
       if (tagAct) ticketPayload.additional_tags = tagAct.value.split(/\s+/).filter(Boolean);
       if (assigneeAct && assigneeAct.value !== 'current_user') ticketPayload.assignee_id = assigneeAct.value;
       if (groupAct) ticketPayload.group_id = groupAct.value;
+    }
 
-      if (commentAct) {
-        const isPublic = publicAct ? (String(publicAct.value) === 'true') : false;
-        ticketPayload.comment = {
-          body: (commentAct.value || '').replace(/<[^>]*>?/gm, ''),
-          public: isPublic
-        };
+    // Process Comment Payload with proper rich HTML support
+    const commentContent = state.editState.commentText || '';
+    if (commentContent && commentContent.trim()) {
+      const isPublic = (state.editState.commentIsPublic !== undefined) ? !!state.editState.commentIsPublic : true;
+      const isHtml = /<[a-z][\s\S]*>/i.test(commentContent);
+
+      ticketPayload.comment = {
+        public: isPublic
+      };
+
+      if (isHtml) {
+        // CRITICAL FOR ZENDESK: html_body instructs Zendesk to render rich text/HTML (bold, links, etc.)
+        // instead of printing raw <p> and <strong> tags as literal text!
+        ticketPayload.comment.html_body = commentContent;
+        // body provides the markdown fallback
+        ticketPayload.comment.body = convertHtmlToZendeskMarkdown(commentContent);
+      } else {
+        ticketPayload.comment.body = commentContent;
       }
     }
 
@@ -4186,6 +4216,12 @@
         if (elements.editMacroStatusText) elements.editMacroStatusText.textContent = 'Select a macro below';
         if (elements.btnConfirmApplyMacro) elements.btnConfirmApplyMacro.disabled = true;
         renderMacroList(state.macros);
+        return;
+      }
+
+      // Toggle Macro Comment Privacy (Public reply vs Internal note)
+      if (e.target.closest('#edit-comment-privacy-pill')) {
+        updateEditCommentPrivacyBadge(!state.editState.commentIsPublic);
         return;
       }
 

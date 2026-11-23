@@ -2893,6 +2893,20 @@ html, body {
   line-height: 1.4;
 }
 
+.zd-privacy-toggle {
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.12s, transform 0.1s;
+}
+
+.zd-privacy-toggle:hover {
+  opacity: 0.85;
+}
+
+.zd-privacy-toggle:active {
+  transform: scale(0.96);
+}
+
 .hidden {
   display: none !important;
 }
