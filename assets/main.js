@@ -3206,6 +3206,7 @@
     hideEditAlert();
     state.editState.selectedMacro = null;
     state.editState.evaluatedPayload = null;
+    state.editState.parsedActions = null;
     state.editState.categoryPath = [];
     state.editState.macroSearchQuery = '';
     if (elements.btnConfirmApplyMacro) elements.btnConfirmApplyMacro.disabled = false;
@@ -3370,6 +3371,87 @@
     elements.editMacroList.innerHTML = html;
   }
 
+  function extractTagsFromActionValue(val) {
+    if (!val) return [];
+    if (Array.isArray(val)) {
+      return val.map(t => String(t).trim()).filter(Boolean);
+    }
+    if (typeof val === 'string') {
+      return val.split(/[\s,]+/).map(t => t.trim()).filter(Boolean);
+    }
+    return [];
+  }
+
+  function parseMacroActions(macro) {
+    const actions = (macro && macro.actions) || [];
+    const parsed = {
+      status: null,
+      custom_status_id: null,
+      priority: null,
+      type: null,
+      subject: null,
+      assignee_id: null,
+      group_id: null,
+      tagsToAdd: [],
+      tagsToRemove: [],
+      tagsToSet: null,
+      customFields: [],
+      commentText: '',
+      commentIsPublic: true
+    };
+
+    actions.forEach(action => {
+      if (!action || !action.field) return;
+      const field = String(action.field).trim();
+      const val = action.value;
+
+      if (field === 'status') {
+        parsed.status = String(val);
+      } else if (field === 'custom_status_id') {
+        parsed.custom_status_id = String(val);
+      } else if (field === 'priority') {
+        parsed.priority = String(val);
+      } else if (field === 'type') {
+        parsed.type = String(val);
+      } else if (field === 'subject') {
+        parsed.subject = String(val);
+      } else if (field === 'assignee_id') {
+        parsed.assignee_id = String(val);
+      } else if (field === 'group_id') {
+        parsed.group_id = String(val);
+      } else if (field === 'current_tags' || field === 'add_tags' || field === 'tags' || field === 'tag') {
+        const tags = extractTagsFromActionValue(val);
+        tags.forEach(t => {
+          if (!parsed.tagsToAdd.includes(t)) parsed.tagsToAdd.push(t);
+        });
+      } else if (field === 'set_tags') {
+        parsed.tagsToSet = extractTagsFromActionValue(val);
+      } else if (field === 'remove_tags' || field === 'delete_tags') {
+        const tags = extractTagsFromActionValue(val);
+        tags.forEach(t => {
+          if (!parsed.tagsToRemove.includes(t)) parsed.tagsToRemove.push(t);
+        });
+      } else if (field === 'comment_mode_is_public') {
+        parsed.commentIsPublic = (String(val) === 'true');
+      } else if (field === 'comment_mode') {
+        parsed.commentIsPublic = (String(val).toLowerCase() === 'public');
+      } else if (field === 'comment_value_html') {
+        parsed.commentText = String(val);
+      } else if (field === 'comment_value' || field === 'comment_audio') {
+        if (!parsed.commentText) {
+          parsed.commentText = String(val);
+        }
+      } else if (field.startsWith('custom_fields_') || field.startsWith('custom_field_')) {
+        const fid = field.replace(/^custom_fields?_/, '');
+        if (fid) {
+          parsed.customFields.push({ id: fid, value: val });
+        }
+      }
+    });
+
+    return parsed;
+  }
+
   function selectMacro(macro) {
     if (!macro) return;
     state.editState.selectedMacro = macro;
@@ -3396,28 +3478,32 @@
 
     hideEditAlert();
 
+    const parsedActions = parseMacroActions(macro);
+    state.editState.parsedActions = parsedActions;
+
     const selectedIds = state.editState.selectedTicketIds || [];
     const firstTicketId = selectedIds[0];
 
-    // Attempt to evaluate macro natively via Zendesk if connected
+    // Attempt to evaluate macro preview via Zendesk if connected
     if (state.client && firstTicketId) {
       state.client.request({
         url: `/api/v2/tickets/${firstTicketId}/macros/${macro.id}/apply.json`,
         type: 'GET',
         dataType: 'json'
       }).then(res => {
-        if (res && res.result && res.result.ticket) {
-          state.editState.evaluatedPayload = res.result.ticket;
-          renderMacroActionPreview(macro, res.result.ticket);
-        } else {
-          renderMacroActionPreview(macro, null);
-        }
+        const evalTicket = (res && res.result && res.result.ticket)
+          || (res && res.transformed_ticket)
+          || (res && res.ticket)
+          || (res && res.result)
+          || null;
+        state.editState.evaluatedPayload = evalTicket;
+        renderMacroActionPreview(macro, parsedActions, evalTicket);
       }).catch(err => {
-        console.warn('Macro evaluation endpoint failed, using static actions:', err);
-        renderMacroActionPreview(macro, null);
+        console.warn('Macro evaluation endpoint failed, using static parsed actions:', err);
+        renderMacroActionPreview(macro, parsedActions, null);
       });
     } else {
-      renderMacroActionPreview(macro, null);
+      renderMacroActionPreview(macro, parsedActions, null);
     }
 
     // Enable Apply button
@@ -3444,55 +3530,73 @@
     }
   }
 
-  function renderMacroActionPreview(macro, evaluatedTicket) {
+  function renderMacroActionPreview(macro, parsedActions, evaluatedTicket) {
     const badgesContainer = elements.editPreviewBadges;
     const commentGroup = elements.editPreviewCommentGroup;
     const commentBody = elements.editPreviewCommentBody;
 
     const badges = [];
-    let commentText = '';
-    let isPublic = true; // In Zendesk, default to public reply for macro comments
+    let commentText = parsedActions.commentText || '';
+    let isPublic = parsedActions.commentIsPublic;
 
-    if (evaluatedTicket) {
-      if (evaluatedTicket.status) {
-        badges.push(`<span class="preview-badge preview-badge-status">Status: ${escapeHtml(evaluatedTicket.status)}</span>`);
+    // 1. Status Badge
+    const statusVal = (evaluatedTicket && evaluatedTicket.status) || parsedActions.status;
+    if (statusVal) {
+      badges.push(`<span class="preview-badge preview-badge-status">Status: ${escapeHtml(statusVal)}</span>`);
+    }
+
+    // 2. Priority Badge
+    const priorityVal = (evaluatedTicket && evaluatedTicket.priority) || parsedActions.priority;
+    if (priorityVal) {
+      badges.push(`<span class="preview-badge preview-badge-priority">Priority: ${escapeHtml(priorityVal)}</span>`);
+    }
+
+    // 3. Type Badge
+    const typeVal = (evaluatedTicket && evaluatedTicket.type) || parsedActions.type;
+    if (typeVal) {
+      badges.push(`<span class="preview-badge preview-badge-type">Type: ${escapeHtml(typeVal)}</span>`);
+    }
+
+    // 4. Assignee Badge
+    if (parsedActions.assignee_id) {
+      let assigneeDisplay = parsedActions.assignee_id;
+      if (parsedActions.assignee_id === 'current_user') {
+        assigneeDisplay = state.currentUserName ? `Current User (${state.currentUserName})` : 'Current User';
       }
-      if (evaluatedTicket.priority) {
-        badges.push(`<span class="preview-badge preview-badge-priority">Priority: ${escapeHtml(evaluatedTicket.priority)}</span>`);
-      }
-      if (evaluatedTicket.tags && evaluatedTicket.tags.length > 0) {
-        badges.push(`<span class="preview-badge preview-badge-tag">Tags: ${escapeHtml(evaluatedTicket.tags.join(', '))}</span>`);
-      }
-      if (evaluatedTicket.comment) {
-        commentText = evaluatedTicket.comment.html_body || evaluatedTicket.comment.body || evaluatedTicket.comment.value || '';
-        if (typeof evaluatedTicket.comment.public === 'boolean') {
-          isPublic = evaluatedTicket.comment.public;
-        }
-      }
+      badges.push(`<span class="preview-badge preview-badge-assignee">Assignee: ${escapeHtml(assigneeDisplay)}</span>`);
+    }
+
+    // 5. Group Badge
+    if (parsedActions.group_id) {
+      badges.push(`<span class="preview-badge preview-badge-assignee">Group ID: ${escapeHtml(parsedActions.group_id)}</span>`);
+    }
+
+    // 6. Tags Badges
+    if (parsedActions.tagsToSet !== null) {
+      badges.push(`<span class="preview-badge preview-badge-tag-add">Set Tags: ${escapeHtml(parsedActions.tagsToSet.join(', ') || '(empty)')}</span>`);
     } else {
-      // Fallback: parse raw macro actions
-      const actions = macro.actions || [];
-      const statusAct = actions.find(a => a.field === 'status');
-      const priorityAct = actions.find(a => a.field === 'priority');
-      const tagAct = actions.find(a => a.field === 'current_tags' || a.field === 'set_tags');
-      const publicAct = actions.find(a => a.field === 'comment_mode_is_public');
-      const commentHtmlAct = actions.find(a => a.field === 'comment_value_html');
-      const commentPlainAct = actions.find(a => a.field === 'comment_value');
-      const commentAct = commentHtmlAct || commentPlainAct;
-
-      if (statusAct) badges.push(`<span class="preview-badge preview-badge-status">Status: ${escapeHtml(statusAct.value)}</span>`);
-      if (priorityAct) badges.push(`<span class="preview-badge preview-badge-priority">Priority: ${escapeHtml(priorityAct.value)}</span>`);
-      if (tagAct) badges.push(`<span class="preview-badge preview-badge-tag">Tags: ${escapeHtml(tagAct.value)}</span>`);
-
-      if (publicAct) {
-        isPublic = (String(publicAct.value) === 'true');
-      } else {
-        isPublic = true; // In Zendesk, default to public reply
+      if (parsedActions.tagsToAdd.length > 0) {
+        badges.push(`<span class="preview-badge preview-badge-tag-add">+Tag: ${escapeHtml(parsedActions.tagsToAdd.join(', '))}</span>`);
       }
-
-      if (commentAct) {
-        commentText = commentAct.value || '';
+      if (parsedActions.tagsToRemove.length > 0) {
+        badges.push(`<span class="preview-badge preview-badge-tag-remove">-Tag: ${escapeHtml(parsedActions.tagsToRemove.join(', '))}</span>`);
       }
+    }
+
+    // If evaluated ticket has custom comment with placeholders evaluated
+    if (evaluatedTicket && evaluatedTicket.comment) {
+      const evalComment = evaluatedTicket.comment.html_body || evaluatedTicket.comment.body || evaluatedTicket.comment.value;
+      if (evalComment && evalComment.trim()) {
+        commentText = evalComment;
+      }
+      if (typeof evaluatedTicket.comment.public === 'boolean') {
+        isPublic = evaluatedTicket.comment.public;
+      }
+    }
+
+    // 7. Custom Fields Badges
+    if (parsedActions.customFields.length > 0) {
+      badges.push(`<span class="preview-badge preview-badge-field">${parsedActions.customFields.length} Custom Field(s)</span>`);
     }
 
     state.editState.commentText = commentText;
@@ -3505,7 +3609,6 @@
     if (commentGroup && commentBody) {
       if (commentText && commentText.trim()) {
         commentGroup.classList.remove('hidden');
-        // Render rich HTML in the preview so user sees bold and formatting
         commentBody.innerHTML = commentText;
         updateEditCommentPrivacyBadge(isPublic);
       } else {
@@ -3529,141 +3632,242 @@
 
     // Set Loading state
     if (elements.btnConfirmApplyMacro) elements.btnConfirmApplyMacro.disabled = true;
-    if (elements.editBtnText) elements.editBtnText.textContent = 'Applying...';
+    if (elements.editBtnText) elements.editBtnText.textContent = `Applying to ${selectedIds.length} ticket(s)...`;
     if (elements.editBtnSpinner) elements.editBtnSpinner.classList.remove('hidden');
     hideEditAlert();
 
-    // Construct update payload
-    let ticketPayload = {};
-
-    if (state.editState.evaluatedPayload) {
-      const evalTicket = state.editState.evaluatedPayload;
-      if (evalTicket.status) ticketPayload.status = evalTicket.status;
-      if (evalTicket.priority) ticketPayload.priority = evalTicket.priority;
-      if (evalTicket.tags) ticketPayload.additional_tags = evalTicket.tags;
-      if (evalTicket.assignee_id) ticketPayload.assignee_id = evalTicket.assignee_id;
-      if (evalTicket.group_id) ticketPayload.group_id = evalTicket.group_id;
-    } else {
-      // Build from macro actions directly
-      const actions = macro.actions || [];
-      const statusAct = actions.find(a => a.field === 'status');
-      const priorityAct = actions.find(a => a.field === 'priority');
-      const tagAct = actions.find(a => a.field === 'current_tags' || a.field === 'set_tags');
-      const assigneeAct = actions.find(a => a.field === 'assignee_id');
-      const groupAct = actions.find(a => a.field === 'group_id');
-
-      if (statusAct) ticketPayload.status = statusAct.value;
-      if (priorityAct) ticketPayload.priority = priorityAct.value;
-      if (tagAct) ticketPayload.additional_tags = tagAct.value.split(/\s+/).filter(Boolean);
-      if (assigneeAct && assigneeAct.value !== 'current_user') ticketPayload.assignee_id = assigneeAct.value;
-      if (groupAct) ticketPayload.group_id = groupAct.value;
-    }
-
-    // Process Comment Payload with proper rich HTML support
+    const parsedActions = state.editState.parsedActions || parseMacroActions(macro);
     const commentContent = state.editState.commentText || '';
-    if (commentContent && commentContent.trim()) {
-      const isPublic = (state.editState.commentIsPublic !== undefined) ? !!state.editState.commentIsPublic : true;
-      const isHtml = /<[a-z][\s\S]*>/i.test(commentContent);
-
-      ticketPayload.comment = {
-        public: isPublic
-      };
-
-      if (isHtml) {
-        // CRITICAL FOR ZENDESK: html_body instructs Zendesk to render rich text/HTML (bold, links, etc.)
-        // instead of printing raw <p> and <strong> tags as literal text!
-        ticketPayload.comment.html_body = commentContent;
-        // body provides the markdown fallback
-        ticketPayload.comment.body = convertHtmlToZendeskMarkdown(commentContent);
-      } else {
-        ticketPayload.comment.body = commentContent;
-      }
-    }
-
+    const isPublic = (state.editState.commentIsPublic !== undefined) ? !!state.editState.commentIsPublic : true;
     const macroTitle = macro.title.replace(/::/g, ' › ');
 
-    if (state.client) {
-      const updateUrl = (selectedIds.length === 1)
-        ? `/api/v2/tickets/${selectedIds[0]}.json`
-        : `/api/v2/tickets/update_many.json?ids=${selectedIds.join(',')}`;
-
-      state.client.request({
-        url: updateUrl,
-        type: 'PUT',
-        contentType: 'application/json',
-        data: JSON.stringify({ ticket: ticketPayload })
-      }).then(() => {
-        showToast(`Successfully applied macro "${macroTitle}" to ${selectedIds.length} ticket(s)!`);
+    if (!state.client) {
+      // Local preview mode simulation
+      setTimeout(() => {
+        showToast(`[Preview] Applied macro "${macroTitle}" to ${selectedIds.length} ticket(s)!`);
         closeEditModal();
 
-        // Update in-memory ticket objects so table reflects changes immediately
-        if (state.rawViewTickets) {
-          state.rawViewTickets.forEach(t => {
-            if (selectedIds.includes(t.id)) {
-              if (ticketPayload.status) t.status = ticketPayload.status;
-              if (ticketPayload.priority) t.priority = ticketPayload.priority;
-              if (ticketPayload.additional_tags) {
-                t.tags = Array.from(new Set([...(t.tags || []), ...ticketPayload.additional_tags]));
+        selectedIds.forEach(id => {
+          const t = (state.rawViewTickets || []).find(ticket => ticket.id === id);
+          if (t) {
+            if (parsedActions.status) t.status = parsedActions.status;
+            if (parsedActions.priority) t.priority = parsedActions.priority;
+            if (parsedActions.type) t.type = parsedActions.type;
+            let tags = Array.isArray(t.tags) ? [...t.tags] : [];
+            if (parsedActions.tagsToSet !== null) {
+              tags = [...parsedActions.tagsToSet];
+            } else {
+              if (parsedActions.tagsToAdd.length > 0) {
+                parsedActions.tagsToAdd.forEach(tag => {
+                  if (!tags.includes(tag)) tags.push(tag);
+                });
+              }
+              if (parsedActions.tagsToRemove.length > 0) {
+                tags = tags.filter(tag => !parsedActions.tagsToRemove.includes(tag));
               }
             }
-          });
-        }
-        if (state.filteredViewTickets) {
-          state.filteredViewTickets.forEach(t => {
-            if (selectedIds.includes(t.id)) {
-              if (ticketPayload.status) t.status = ticketPayload.status;
-              if (ticketPayload.priority) t.priority = ticketPayload.priority;
-              if (ticketPayload.additional_tags) {
-                t.tags = Array.from(new Set([...(t.tags || []), ...ticketPayload.additional_tags]));
-              }
-            }
-          });
-        }
+            t.tags = tags;
+          }
+        });
 
+        populateAvailableTagsFromTickets();
         state.selectedViewTicketIds.clear();
         updateViewBulkActionBar();
         renderViewTicketsTable();
-      }).catch(err => {
-        console.error('Failed to apply macro to tickets:', err);
+      }, 500);
+      return;
+    }
+
+    // Apply to each ticket individually to guarantee all actions (comments, tags, status, fields)
+    // are executed reliably without hitting bulk API limitations!
+    function applyToTicket(ticketId) {
+      const localTicket = (state.rawViewTickets || []).find(t => t.id === ticketId) || {};
+      const currentTags = Array.isArray(localTicket.tags) ? [...localTicket.tags] : [];
+
+      let finalTags = [...currentTags];
+      if (parsedActions.tagsToSet !== null) {
+        finalTags = [...parsedActions.tagsToSet];
+      } else {
+        if (parsedActions.tagsToAdd.length > 0) {
+          parsedActions.tagsToAdd.forEach(tag => {
+            if (!finalTags.includes(tag)) finalTags.push(tag);
+          });
+        }
+        if (parsedActions.tagsToRemove.length > 0) {
+          finalTags = finalTags.filter(tag => !parsedActions.tagsToRemove.includes(tag));
+        }
+      }
+
+      const ticketPayload = {};
+
+      if (macro.id) {
+        ticketPayload.macro_id = macro.id;
+      }
+
+      if (parsedActions.status) ticketPayload.status = parsedActions.status;
+      if (parsedActions.custom_status_id) ticketPayload.custom_status_id = parsedActions.custom_status_id;
+      if (parsedActions.priority) ticketPayload.priority = parsedActions.priority;
+      if (parsedActions.type) ticketPayload.type = parsedActions.type;
+      if (parsedActions.subject) ticketPayload.subject = parsedActions.subject;
+
+      if (parsedActions.assignee_id) {
+        if (parsedActions.assignee_id === 'current_user') {
+          if (state.currentUserId) ticketPayload.assignee_id = state.currentUserId;
+        } else if (parsedActions.assignee_id !== '') {
+          ticketPayload.assignee_id = parsedActions.assignee_id;
+        }
+      }
+
+      if (parsedActions.group_id && parsedActions.group_id !== '') {
+        ticketPayload.group_id = parsedActions.group_id;
+      }
+
+      if (parsedActions.customFields && parsedActions.customFields.length > 0) {
+        ticketPayload.custom_fields = parsedActions.customFields;
+      }
+
+      // Pass tags directly in ticket payload
+      // In Zendesk Support, PUT /api/v2/tickets/{id}.json sets the ticket's tags to finalTags
+      if (parsedActions.tagsToSet !== null || parsedActions.tagsToAdd.length > 0 || parsedActions.tagsToRemove.length > 0) {
+        ticketPayload.tags = finalTags;
+      }
+
+      // Add comment if macro includes one
+      if (commentContent && commentContent.trim()) {
+        const isHtml = /<[a-z][\s\S]*>/i.test(commentContent);
+        ticketPayload.comment = {
+          public: isPublic
+        };
+        if (isHtml) {
+          ticketPayload.comment.html_body = commentContent;
+          ticketPayload.comment.body = convertHtmlToZendeskMarkdown(commentContent);
+        } else {
+          ticketPayload.comment.body = commentContent;
+        }
+      }
+
+      // 1. Primary Ticket Update
+      return state.client.request({
+        url: `/api/v2/tickets/${ticketId}.json`,
+        type: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify({ ticket: ticketPayload })
+      }).then(res => {
+        // 2. Extra Tag Append/Remove calls to ensure tags are 100% saved on server
+        // even if localTicket.tags had not cached all server-side tags!
+        const tagPromises = [];
+
+        if (parsedActions.tagsToAdd.length > 0 && parsedActions.tagsToSet === null) {
+          tagPromises.push(
+            state.client.request({
+              url: `/api/v2/tickets/${ticketId}/tags.json`,
+              type: 'PUT',
+              contentType: 'application/json',
+              data: JSON.stringify({ tags: parsedActions.tagsToAdd })
+            }).catch(tagErr => {
+              console.warn(`Tag append endpoint warning on #${ticketId}:`, tagErr);
+            })
+          );
+        }
+
+        if (parsedActions.tagsToRemove.length > 0 && parsedActions.tagsToSet === null) {
+          tagPromises.push(
+            state.client.request({
+              url: `/api/v2/tickets/${ticketId}/tags.json`,
+              type: 'DELETE',
+              contentType: 'application/json',
+              data: JSON.stringify({ tags: parsedActions.tagsToRemove })
+            }).catch(tagErr => {
+              console.warn(`Tag delete endpoint warning on #${ticketId}:`, tagErr);
+            })
+          );
+        }
+
+        return Promise.all(tagPromises).then(() => {
+          if (res && res.ticket) {
+            Object.assign(localTicket, res.ticket);
+            // Ensure local ticket tags has the newly added tags
+            if (Array.isArray(res.ticket.tags)) {
+              localTicket.tags = res.ticket.tags;
+            } else {
+              localTicket.tags = finalTags;
+            }
+          } else {
+            if (ticketPayload.status) localTicket.status = ticketPayload.status;
+            if (ticketPayload.priority) localTicket.priority = ticketPayload.priority;
+            localTicket.tags = finalTags;
+          }
+
+          // Also update in filteredViewTickets
+          const filteredT = (state.filteredViewTickets || []).find(t => t.id === ticketId);
+          if (filteredT && filteredT !== localTicket) {
+            Object.assign(filteredT, localTicket);
+          }
+
+          return res;
+        });
+      });
+    }
+
+    // Execute in batches of 5 concurrent tickets to prevent rate limiting or browser stutter
+    const batchSize = 5;
+    const results = [];
+    let currentIndex = 0;
+
+    function processNextBatch() {
+      if (currentIndex >= selectedIds.length) {
+        return Promise.resolve(results);
+      }
+      const batchIds = selectedIds.slice(currentIndex, currentIndex + batchSize);
+      currentIndex += batchSize;
+
+      if (elements.editBtnText) {
+        elements.editBtnText.textContent = `Applying... (${Math.min(currentIndex, selectedIds.length)}/${selectedIds.length})`;
+      }
+
+      const batchPromises = batchIds.map(id => applyToTicket(id).then(r => ({ success: true, id, r })).catch(err => ({ success: false, id, err })));
+      return Promise.all(batchPromises).then(batchResults => {
+        results.push(...batchResults);
+        return processNextBatch();
+      });
+    }
+
+    processNextBatch().then(allResults => {
+      const successes = allResults.filter(r => r.success);
+      const failures = allResults.filter(r => !r.success);
+
+      if (failures.length === 0) {
+        showToast(`Successfully applied macro "${macroTitle}" to ${successes.length} ticket(s)!`);
+        closeEditModal();
+      } else if (successes.length > 0) {
+        showToast(`Applied macro to ${successes.length} ticket(s) (${failures.length} failed).`);
+        closeEditModal();
+      } else {
+        const firstErr = failures[0].err;
         let errMsg = 'Failed to apply macro to tickets.';
-        if (err && err.responseJSON && err.responseJSON.description) {
-          errMsg = err.responseJSON.description;
-        } else if (err && err.message) {
-          errMsg = err.message;
+        if (firstErr && firstErr.responseJSON && firstErr.responseJSON.description) {
+          errMsg = firstErr.responseJSON.description;
+        } else if (firstErr && firstErr.message) {
+          errMsg = firstErr.message;
         }
         showEditAlert(errMsg);
         if (elements.btnConfirmApplyMacro) elements.btnConfirmApplyMacro.disabled = false;
         if (elements.editBtnText) elements.editBtnText.textContent = `Apply to ${selectedIds.length} Ticket${selectedIds.length === 1 ? '' : 's'}`;
         if (elements.editBtnSpinner) elements.editBtnSpinner.classList.add('hidden');
-      });
-    } else {
-      // Local preview mode
-      setTimeout(() => {
-        showToast(`[Preview] Applied macro "${macroTitle}" to ${selectedIds.length} ticket(s)!`);
-        closeEditModal();
+        return;
+      }
 
-        if (state.rawViewTickets) {
-          state.rawViewTickets.forEach(t => {
-            if (selectedIds.includes(t.id)) {
-              if (ticketPayload.status) t.status = ticketPayload.status;
-              if (ticketPayload.priority) t.priority = ticketPayload.priority;
-            }
-          });
-        }
-        if (state.filteredViewTickets) {
-          state.filteredViewTickets.forEach(t => {
-            if (selectedIds.includes(t.id)) {
-              if (ticketPayload.status) t.status = ticketPayload.status;
-              if (ticketPayload.priority) t.priority = ticketPayload.priority;
-            }
-          });
-        }
-
-        state.selectedViewTicketIds.clear();
-        updateViewBulkActionBar();
-        renderViewTicketsTable();
-      }, 500);
-    }
+      populateAvailableTagsFromTickets();
+      state.selectedViewTicketIds.clear();
+      updateViewBulkActionBar();
+      renderViewTicketsTable();
+    }).catch(err => {
+      console.error('Fatal error during macro batch apply:', err);
+      showEditAlert('An unexpected error occurred while applying the macro.');
+      if (elements.btnConfirmApplyMacro) elements.btnConfirmApplyMacro.disabled = false;
+      if (elements.editBtnText) elements.editBtnText.textContent = `Apply to ${selectedIds.length} Ticket${selectedIds.length === 1 ? '' : 's'}`;
+      if (elements.editBtnSpinner) elements.editBtnSpinner.classList.add('hidden');
+    });
   }
 
   // ==========================================
@@ -4328,6 +4532,7 @@
       if (e.target.closest('#btn-clear-selected-macro')) {
         state.editState.selectedMacro = null;
         state.editState.evaluatedPayload = null;
+        state.editState.parsedActions = null;
         if (elements.editMacroPreviewWrap) elements.editMacroPreviewWrap.classList.add('hidden');
         if (elements.editMacroStatusText) elements.editMacroStatusText.textContent = 'Select a macro below';
         if (elements.btnConfirmApplyMacro) elements.btnConfirmApplyMacro.disabled = true;

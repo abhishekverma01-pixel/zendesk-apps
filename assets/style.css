@@ -2880,16 +2880,46 @@ html, body {
   border: 1px solid #b5e1cb;
 }
 
+.preview-badge-priority {
+  background: #fff0eb;
+  color: #c94f18;
+  border: 1px solid #ffd4c2;
+}
+
+.preview-badge-type {
+  background: #f0f7ff;
+  color: #0f5298;
+  border: 1px solid #bfe0ff;
+}
+
+.preview-badge-assignee {
+  background: #f4f5f7;
+  color: #334454;
+  border: 1px solid #d8dcde;
+}
+
 .preview-badge-tag {
   background: #eef2f5;
   color: #334454;
   border: 1px solid #d8dcde;
 }
 
-.preview-badge-priority {
-  background: #fff0eb;
-  color: #c94f18;
-  border: 1px solid #ffd4c2;
+.preview-badge-tag-add {
+  background: #e1f2ea;
+  color: #038153;
+  border: 1px solid #b5e1cb;
+}
+
+.preview-badge-tag-remove {
+  background: #fdf2f2;
+  color: #d93025;
+  border: 1px solid #f8d7da;
+}
+
+.preview-badge-field {
+  background: #fdf8e6;
+  color: #8c6d1f;
+  border: 1px solid #fae8a4;
 }
 
 .edit-preview-comment-group {
