@@ -1887,30 +1887,64 @@ html, body {
 
 .zd-privacy-select-wrap {
   position: relative;
+  display: inline-flex;
+  align-items: center;
 }
 
 .zd-privacy-btn {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   font-family: var(--zd-font-sans);
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   color: #2f3941;
   cursor: pointer;
-  padding: 3px 6px;
+  padding: 4px 9px;
   border-radius: 4px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  transition: background 0.12s;
+  gap: 7px;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+
+.zd-privacy-btn--native {
+  background: #ffffff;
+  border: 1px solid #d8dcde;
+  padding: 5px 10px;
 }
 
 .zd-privacy-btn:hover {
   background: #f1f3f5;
 }
 
-.zd-privacy-icon {
-  color: #52606d;
+.zd-privacy-btn--native:hover {
+  background: #f8f9f9;
+  border-color: #b0bac5;
+}
+
+.zd-privacy-btn.is-open,
+.zd-privacy-btn:focus-visible {
+  outline: none;
+  background: #ffffff;
+  border-color: #1f73b7;
+  box-shadow: 0 0 0 1px #1f73b7;
+}
+
+.zd-privacy-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #68737d;
+}
+
+.zd-privacy-btn.is-internal .zd-privacy-btn-icon {
+  color: #2f3941;
+}
+
+.zd-privacy-caret {
+  color: #49545c;
+  margin-left: 2px;
+  flex-shrink: 0;
 }
 
 .zd-privacy-menu {
@@ -1920,42 +1954,111 @@ html, body {
   background: #ffffff;
   border: 1px solid #d8dcde;
   border-radius: 6px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
-  min-width: 155px;
-  padding: 4px 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  z-index: 1100;
+  min-width: 196px;
+  padding: 0;
+  overflow: hidden;
   animation: fadeIn 0.12s ease-out;
 }
 
+.zd-privacy-menu--up {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
 .zd-privacy-item {
-  padding: 8px 12px;
-  font-size: 12px;
+  position: relative;
+  padding: 9px 12px 9px 10px;
+  font-size: 13px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   cursor: pointer;
   color: #2f3941;
+  font-weight: 400;
   transition: background 0.1s;
+  user-select: none;
 }
 
-.zd-privacy-item:hover {
-  background: #f1f5f9;
+.zd-privacy-item--public {
+  background: #ffffff;
+  border-bottom: 1px solid #e9ebed;
 }
 
-.zd-privacy-item.selected {
-  font-weight: 600;
-  color: #1f73b7;
+.zd-privacy-item--public.selected {
+  background: #f4f7fa;
 }
 
-.zd-privacy-item-left {
-  display: flex;
-  align-items: center;
-  gap: 7px;
+.zd-privacy-item--public:hover {
+  background: #edf3f8;
+}
+
+.zd-privacy-item--internal {
+  background: #ffedd6;
+}
+
+.zd-privacy-item--internal.selected {
+  background: #ffe6c4;
+}
+
+.zd-privacy-item--internal:hover {
+  background: #ffe2ba;
+}
+
+.zd-privacy-left-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: transparent;
+}
+
+.zd-privacy-item.selected .zd-privacy-left-bar {
+  background: #1f73b7;
 }
 
 .zd-item-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
   color: #1f73b7;
-  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.zd-item-svg-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #68737d;
+  flex-shrink: 0;
+}
+
+.zd-privacy-item--internal .zd-item-svg-icon {
+  color: #2f3941;
+}
+
+.zd-item-label {
+  font-size: 13px;
+  color: #2f3941;
+  white-space: nowrap;
+}
+
+.zd-item-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1f73b7;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.zd-item-check.is-inactive,
+.zd-item-dot.is-inactive {
+  visibility: hidden;
 }
 
 .zd-composer-editor,
@@ -2923,14 +3026,15 @@ html, body {
 }
 
 .edit-preview-comment-group {
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 .edit-comment-label-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 5px;
+  gap: 10px;
+  margin-bottom: 6px;
+  position: relative;
 }
 
 .edit-comment-hint {
@@ -2949,20 +3053,12 @@ html, body {
   overflow-y: auto;
   white-space: pre-wrap;
   line-height: 1.4;
+  transition: background 0.15s, border-color 0.15s;
 }
 
-.zd-privacy-toggle {
-  cursor: pointer;
-  user-select: none;
-  transition: opacity 0.12s, transform 0.1s;
-}
-
-.zd-privacy-toggle:hover {
-  opacity: 0.85;
-}
-
-.zd-privacy-toggle:active {
-  transform: scale(0.96);
+.edit-preview-comment-body.is-internal {
+  background: #fff7e6;
+  border-color: #f3d19e;
 }
 
 .hidden {

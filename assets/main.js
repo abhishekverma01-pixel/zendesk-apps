@@ -182,9 +182,11 @@
     btnPrivacyClosing: document.getElementById('btn-privacy-closing'),
     menuPrivacyClosing: document.getElementById('menu-privacy-closing'),
     textPrivacyClosing: document.getElementById('text-privacy-closing'),
+    iconPrivacyClosing: document.getElementById('icon-privacy-closing'),
     btnPrivacyDestination: document.getElementById('btn-privacy-destination'),
     menuPrivacyDestination: document.getElementById('menu-privacy-destination'),
     textPrivacyDestination: document.getElementById('text-privacy-destination'),
+    iconPrivacyDestination: document.getElementById('icon-privacy-destination'),
     mergeModalAlert: document.getElementById('merge-modal-alert'),
     appToast: document.getElementById('app-toast'),
 
@@ -221,7 +223,10 @@
     btnClearSelectedMacro: document.getElementById('btn-clear-selected-macro'),
     editPreviewBadges: document.getElementById('edit-preview-badges'),
     editPreviewCommentGroup: document.getElementById('edit-preview-comment-group'),
-    editCommentPrivacyPill: document.getElementById('edit-comment-privacy-pill'),
+    btnPrivacyEdit: document.getElementById('btn-privacy-edit'),
+    menuPrivacyEdit: document.getElementById('menu-privacy-edit'),
+    textPrivacyEdit: document.getElementById('text-privacy-edit'),
+    iconPrivacyEdit: document.getElementById('icon-privacy-edit'),
     editPreviewCommentBody: document.getElementById('edit-preview-comment-body'),
     editModalAlert: document.getElementById('edit-modal-alert'),
 
@@ -1648,45 +1653,100 @@
     }
   }
 
+  const PRIVACY_PUBLIC_ICON_SVG = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5L2 7l4.5 3.5"></path><path d="M2.5 7H10a4 4 0 0 1 4 4v1.5"></path></svg>';
+  const PRIVACY_INTERNAL_ICON_SVG = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V6.5"></path><path d="M11.5 1.8a1.2 1.2 0 0 1 1.7 1.7L7.5 9.2l-2.2.5.5-2.2 5.7-5.7z"></path></svg>';
+
+  /** Returns DOM references and state setter for a comment privacy dropdown target. */
+  function getPrivacyDropdownConfig(targetType) {
+    const configs = {
+      closing: {
+        btn: elements.btnPrivacyClosing,
+        menu: elements.menuPrivacyClosing,
+        text: elements.textPrivacyClosing,
+        icon: elements.iconPrivacyClosing,
+        body: elements.mergeSourceComment,
+        setState: (isPublic) => { state.mergeState.sourceCommentIsPublic = isPublic; }
+      },
+      destination: {
+        btn: elements.btnPrivacyDestination,
+        menu: elements.menuPrivacyDestination,
+        text: elements.textPrivacyDestination,
+        icon: elements.iconPrivacyDestination,
+        body: elements.mergeTargetComment,
+        setState: (isPublic) => { state.mergeState.targetCommentIsPublic = isPublic; }
+      },
+      edit: {
+        btn: elements.btnPrivacyEdit,
+        menu: elements.menuPrivacyEdit,
+        text: elements.textPrivacyEdit,
+        icon: elements.iconPrivacyEdit,
+        body: elements.editPreviewCommentBody,
+        setState: (isPublic) => { state.editState.commentIsPublic = isPublic; }
+      }
+    };
+    return configs[targetType] || null;
+  }
+
+  /** Closes all open privacy dropdown menus except the optionally specified target. */
+  function closeAllPrivacyMenus(exceptTarget) {
+    ['closing', 'destination', 'edit'].forEach(key => {
+      if (key === exceptTarget) return;
+      const cfg = getPrivacyDropdownConfig(key);
+      if (cfg && cfg.menu) cfg.menu.classList.add('hidden');
+      if (cfg && cfg.btn) {
+        cfg.btn.classList.remove('is-open');
+        cfg.btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  /** Toggles a privacy dropdown menu and updates its active ring state. */
+  function togglePrivacyMenu(targetType) {
+    const cfg = getPrivacyDropdownConfig(targetType);
+    if (!cfg || !cfg.menu) return;
+    closeAllPrivacyMenus(targetType);
+    const willOpen = cfg.menu.classList.contains('hidden');
+    cfg.menu.classList.toggle('hidden', !willOpen);
+    if (cfg.btn) {
+      cfg.btn.classList.toggle('is-open', willOpen);
+      cfg.btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    }
+  }
+
+  /** Updates comment privacy state, button icon/label, and dropdown option checkmarks. */
   function setComposerPrivacy(targetType, isPublic) {
-    if (targetType === 'closing') {
-      state.mergeState.sourceCommentIsPublic = isPublic;
-      if (elements.textPrivacyClosing) {
-        elements.textPrivacyClosing.textContent = isPublic ? 'Public reply' : 'Internal note';
-      }
-      if (elements.mergeSourceComment) {
-        elements.mergeSourceComment.classList.toggle('is-internal', !isPublic);
-      }
-      if (elements.menuPrivacyClosing) {
-        const items = elements.menuPrivacyClosing.querySelectorAll('.zd-privacy-item');
-        items.forEach(item => {
-          const val = item.getAttribute('data-value');
-          const isSelected = (val === 'public' && isPublic) || (val === 'internal' && !isPublic);
-          item.classList.toggle('selected', isSelected);
-          const check = item.querySelector('.zd-item-check');
-          if (check) check.classList.toggle('hidden', !isSelected);
-        });
-        elements.menuPrivacyClosing.classList.add('hidden');
-      }
-    } else if (targetType === 'destination') {
-      state.mergeState.targetCommentIsPublic = isPublic;
-      if (elements.textPrivacyDestination) {
-        elements.textPrivacyDestination.textContent = isPublic ? 'Public reply' : 'Internal note';
-      }
-      if (elements.mergeTargetComment) {
-        elements.mergeTargetComment.classList.toggle('is-internal', !isPublic);
-      }
-      if (elements.menuPrivacyDestination) {
-        const items = elements.menuPrivacyDestination.querySelectorAll('.zd-privacy-item');
-        items.forEach(item => {
-          const val = item.getAttribute('data-value');
-          const isSelected = (val === 'public' && isPublic) || (val === 'internal' && !isPublic);
-          item.classList.toggle('selected', isSelected);
-          const check = item.querySelector('.zd-item-check');
-          if (check) check.classList.toggle('hidden', !isSelected);
-        });
-        elements.menuPrivacyDestination.classList.add('hidden');
-      }
+    const cfg = getPrivacyDropdownConfig(targetType);
+    if (!cfg) return;
+
+    cfg.setState(isPublic);
+
+    if (cfg.text) {
+      cfg.text.textContent = isPublic ? 'Public reply' : 'Internal note';
+    }
+    if (cfg.icon) {
+      cfg.icon.innerHTML = isPublic ? PRIVACY_PUBLIC_ICON_SVG : PRIVACY_INTERNAL_ICON_SVG;
+    }
+    if (cfg.btn) {
+      cfg.btn.classList.toggle('is-internal', !isPublic);
+      cfg.btn.classList.remove('is-open');
+      cfg.btn.setAttribute('aria-expanded', 'false');
+    }
+    if (cfg.body) {
+      cfg.body.classList.toggle('is-internal', !isPublic);
+    }
+    if (cfg.menu) {
+      const items = cfg.menu.querySelectorAll('.zd-privacy-item');
+      items.forEach(item => {
+        const val = item.getAttribute('data-value');
+        const isSelected = (val === 'public' && isPublic) || (val === 'internal' && !isPublic);
+        item.classList.toggle('selected', isSelected);
+        item.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        const check = item.querySelector('.zd-item-check');
+        if (check) check.classList.toggle('is-inactive', !isSelected);
+        const dot = item.querySelector('.zd-item-dot');
+        if (dot) dot.classList.toggle('is-inactive', !isSelected);
+      });
+      cfg.menu.classList.add('hidden');
     }
   }
 
@@ -3015,6 +3075,7 @@
   }
 
   function closeMergeModal() {
+    closeAllPrivacyMenus();
     closeLinkPopover();
     hideLinkTooltip();
     if (elements.mergeModal) {
@@ -3204,6 +3265,7 @@
       elements.editModal.classList.add('hidden');
     }
     hideEditAlert();
+    closeAllPrivacyMenus();
     state.editState.selectedMacro = null;
     state.editState.evaluatedPayload = null;
     state.editState.parsedActions = null;
@@ -3516,20 +3578,6 @@
     }
   }
 
-  function updateEditCommentPrivacyBadge(isPublic) {
-    if (!elements.editCommentPrivacyPill) return;
-    state.editState.commentIsPublic = isPublic;
-    if (isPublic) {
-      elements.editCommentPrivacyPill.textContent = 'Public reply ▾';
-      elements.editCommentPrivacyPill.className = 'badge badge-public zd-privacy-toggle';
-      elements.editCommentPrivacyPill.title = 'Click to switch to Internal note';
-    } else {
-      elements.editCommentPrivacyPill.textContent = 'Internal note ▾';
-      elements.editCommentPrivacyPill.className = 'badge badge-internal zd-privacy-toggle';
-      elements.editCommentPrivacyPill.title = 'Click to switch to Public reply';
-    }
-  }
-
   function renderMacroActionPreview(macro, parsedActions, evaluatedTicket) {
     const badgesContainer = elements.editPreviewBadges;
     const commentGroup = elements.editPreviewCommentGroup;
@@ -3610,8 +3658,9 @@
       if (commentText && commentText.trim()) {
         commentGroup.classList.remove('hidden');
         commentBody.innerHTML = commentText;
-        updateEditCommentPrivacyBadge(isPublic);
+        setComposerPrivacy('edit', isPublic);
       } else {
+        closeAllPrivacyMenus();
         commentGroup.classList.add('hidden');
       }
     }
@@ -4478,6 +4527,11 @@
           closeLinkPopover();
           return;
         }
+        if (document.querySelector('.zd-privacy-menu:not(.hidden)')) {
+          e.stopPropagation();
+          closeAllPrivacyMenus();
+          return;
+        }
         if (elements.editModal && !elements.editModal.classList.contains('hidden')) {
           closeEditModal();
         }
@@ -4503,6 +4557,11 @@
 
     // 15. Delegate Clicks for ticket opening, merge flow, bulk actions, search, and show more
     document.addEventListener('click', (e) => {
+      // Close open privacy dropdowns when clicking outside any privacy selector
+      if (!e.target.closest('.zd-privacy-select-wrap')) {
+        closeAllPrivacyMenus();
+      }
+
       // View Bulk Action: Edit / Apply Macro to Selected Tickets
       if (e.target.closest('#btn-view-bulk-edit')) {
         openEditModal();
@@ -4530,6 +4589,7 @@
       }
 
       if (e.target.closest('#btn-clear-selected-macro')) {
+        closeAllPrivacyMenus();
         state.editState.selectedMacro = null;
         state.editState.evaluatedPayload = null;
         state.editState.parsedActions = null;
@@ -4537,12 +4597,6 @@
         if (elements.editMacroStatusText) elements.editMacroStatusText.textContent = 'Select a macro below';
         if (elements.btnConfirmApplyMacro) elements.btnConfirmApplyMacro.disabled = true;
         renderMacroList(state.macros);
-        return;
-      }
-
-      // Toggle Macro Comment Privacy (Public reply vs Internal note)
-      if (e.target.closest('#edit-comment-privacy-pill')) {
-        updateEditCommentPrivacyBadge(!state.editState.commentIsPublic);
         return;
       }
 
@@ -4658,13 +4712,7 @@
       const privacyBtn = e.target.closest('.zd-privacy-btn');
       if (privacyBtn) {
         const target = privacyBtn.getAttribute('data-target');
-        if (target === 'closing') {
-          if (elements.menuPrivacyClosing) elements.menuPrivacyClosing.classList.toggle('hidden');
-          if (elements.menuPrivacyDestination) elements.menuPrivacyDestination.classList.add('hidden');
-        } else if (target === 'destination') {
-          if (elements.menuPrivacyDestination) elements.menuPrivacyDestination.classList.toggle('hidden');
-          if (elements.menuPrivacyClosing) elements.menuPrivacyClosing.classList.add('hidden');
-        }
+        if (target) togglePrivacyMenu(target);
         return;
       }
 
@@ -4688,12 +4736,6 @@
           applyToolbarFormatting(editor, action);
         }
         return;
-      }
-
-      // Click outside privacy dropdowns to close them
-      if (!e.target.closest('.zd-privacy-select-wrap')) {
-        if (elements.menuPrivacyClosing) elements.menuPrivacyClosing.classList.add('hidden');
-        if (elements.menuPrivacyDestination) elements.menuPrivacyDestination.classList.add('hidden');
       }
 
       // Click outside link popover to close it
