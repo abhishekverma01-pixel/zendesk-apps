@@ -3061,6 +3061,14 @@ html, body {
   border-color: #f3d19e;
 }
 
+.edit-preview-comment-body p {
+  margin: 0 0 6px 0;
+}
+
+.edit-preview-comment-body p:last-child {
+  margin-bottom: 0;
+}
+
 .hidden {
   display: none !important;
 }

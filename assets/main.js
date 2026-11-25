@@ -2251,6 +2251,47 @@
     clearTimeout(linkTooltipHideTimeout);
   }
 
+  /**
+   * Strips pasted inline background/text colors from macro HTML so comments
+   * inherit Zendesk's native bubble background and text color without highlights.
+   */
+  function sanitizeCommentHtmlForZendesk(rawHtml) {
+    if (!rawHtml || typeof rawHtml !== 'string') return '';
+    if (!/<[a-z][\s\S]*>/i.test(rawHtml)) return rawHtml;
+
+    const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
+    const root = doc && doc.body;
+    if (!root) return rawHtml;
+
+    root.querySelectorAll('[style], [bgcolor], font').forEach(el => {
+      if (el.hasAttribute('bgcolor')) el.removeAttribute('bgcolor');
+      if (el.tagName === 'FONT') el.removeAttribute('color');
+      if (el.style) {
+        el.style.removeProperty('background');
+        el.style.removeProperty('background-color');
+        el.style.removeProperty('background-image');
+        el.style.removeProperty('color');
+      }
+      if (!((el.getAttribute('style') || '').trim())) {
+        el.removeAttribute('style');
+      }
+    });
+
+    // Unwrap redundant span/mark/font wrappers bottom-up when no attributes remain
+    const wrappers = Array.from(root.querySelectorAll('span, mark, font')).reverse();
+    wrappers.forEach(node => {
+      const shouldUnwrap = node.tagName === 'MARK' || node.attributes.length === 0;
+      if (shouldUnwrap && node.parentNode) {
+        while (node.firstChild) {
+          node.parentNode.insertBefore(node.firstChild, node);
+        }
+        node.parentNode.removeChild(node);
+      }
+    });
+
+    return root.innerHTML;
+  }
+
   // Convert rich text composer HTML into Zendesk-compliant Markdown
   // This ensures links like [closed](url) render as real clickable hyperlinks in Zendesk ticket view!
   function convertHtmlToZendeskMarkdown(htmlOrNode) {
@@ -3647,6 +3688,11 @@
       badges.push(`<span class="preview-badge preview-badge-field">${parsedActions.customFields.length} Custom Field(s)</span>`);
     }
 
+    // Sanitize pasted inline background/text color overrides before storing/previewing
+    if (commentText && /<[a-z][\s\S]*>/i.test(commentText)) {
+      commentText = sanitizeCommentHtmlForZendesk(commentText);
+    }
+
     state.editState.commentText = commentText;
     state.editState.commentIsPublic = isPublic;
 
@@ -3788,8 +3834,9 @@
           public: isPublic
         };
         if (isHtml) {
-          ticketPayload.comment.html_body = commentContent;
-          ticketPayload.comment.body = convertHtmlToZendeskMarkdown(commentContent);
+          const cleanHtml = sanitizeCommentHtmlForZendesk(commentContent);
+          ticketPayload.comment.html_body = cleanHtml;
+          ticketPayload.comment.body = convertHtmlToZendeskMarkdown(cleanHtml);
         } else {
           ticketPayload.comment.body = commentContent;
         }
